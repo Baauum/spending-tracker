@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Spending Tracker - Bubble Categorizer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -14,30 +15,100 @@
             <p class="subtitle">Drag transactions into vaults to categorize</p>
         </header>
 
-        <div class="upload-section">
-            <label class="upload-btn" for="pdfUpload">
-                📄 Upload Statement (PDF)
-            </label>
-            <input type="file" id="pdfUpload" accept=".pdf" multiple hidden>
-            <span class="upload-hint">Supports CommBank & Amex statements</span>
+        <!-- Tab Navigation -->
+        <div class="tab-nav">
+            <button class="tab-btn active" data-tab="categorize">🫧 Categorize</button>
+            <button class="tab-btn" data-tab="charts">📊 Charts</button>
+            <button class="tab-btn" data-tab="rules">🔄 Auto-Rules</button>
         </div>
 
-        <div class="main-layout">
-            <div class="uncategorized-section">
-                <div class="section-header">
-                    <h2>📥 Uncategorized</h2>
-                    <span class="count" id="uncategorizedCount">0</span>
-                </div>
-                <div class="bubble-container" id="uncategorized" data-vault="uncategorized"></div>
+        <!-- Categorize Tab -->
+        <div class="tab-content active" id="tab-categorize">
+            <div class="upload-section">
+                <label class="upload-btn" for="pdfUpload">
+                    📄 Upload Statement (PDF)
+                </label>
+                <input type="file" id="pdfUpload" accept=".pdf" multiple hidden>
+                <span class="upload-hint">Supports CommBank & Amex statements</span>
             </div>
 
-            <div class="vaults-section">
-                <div class="section-header">
-                    <h2>🏦 Vaults</h2>
-                    <button class="add-vault-btn" id="addVaultBtn">+ Add Vault</button>
+            <!-- Search & Filter Bar -->
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="🔍 Search transactions...">
+                <select id="filterSource">
+                    <option value="all">All Sources</option>
+                    <option value="bank">Bank</option>
+                    <option value="amex">Amex</option>
+                </select>
+                <select id="filterMonth">
+                    <option value="all">All Months</option>
+                </select>
+                <select id="filterStatus">
+                    <option value="all">All Status</option>
+                    <option value="uncategorized">Uncategorized</option>
+                    <option value="categorized">Categorized</option>
+                </select>
+            </div>
+
+            <div class="main-layout">
+                <div class="uncategorized-section">
+                    <div class="section-header">
+                        <h2>📥 Uncategorized</h2>
+                        <span class="count" id="uncategorizedCount">0</span>
+                    </div>
+                    <div class="bubble-container" id="uncategorized" data-vault="uncategorized"></div>
                 </div>
-                <div class="vaults-grid" id="vaultsGrid">
-                    <!-- Vaults will be inserted here -->
+
+                <div class="vaults-section">
+                    <div class="section-header">
+                        <h2>🏦 Vaults</h2>
+                        <button class="add-vault-btn" id="addVaultBtn">+ Add Vault</button>
+                    </div>
+                    <div class="vaults-grid" id="vaultsGrid"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Tab -->
+        <div class="tab-content" id="tab-charts">
+            <div class="charts-container">
+                <div class="chart-card full-width">
+                    <div class="chart-header">
+                        <h3>📈 Monthly Spending Comparison</h3>
+                        <select id="chartYear">
+                            <option value="2026">2026</option>
+                            <option value="2025">2025</option>
+                        </select>
+                    </div>
+                    <canvas id="monthlyChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>🍩 Spending by Category</h3>
+                    <canvas id="categoryChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>📊 Category Trends</h3>
+                    <canvas id="trendChart"></canvas>
+                </div>
+                <div class="chart-card full-width">
+                    <h3>🏆 Top Spending Categories</h3>
+                    <div id="topCategories"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Auto-Rules Tab -->
+        <div class="tab-content" id="tab-rules">
+            <div class="rules-container">
+                <div class="rules-header">
+                    <h3>🔄 Auto-Categorization Rules</h3>
+                    <p>Transactions matching these keywords will be automatically categorized</p>
+                    <button class="add-vault-btn" id="addRuleBtn">+ Add Rule</button>
+                </div>
+                <div class="rules-list" id="rulesList"></div>
+                <div class="rules-actions">
+                    <button class="action-btn" id="applyRulesBtn">⚡ Apply Rules to All</button>
+                    <button class="action-btn" id="learnRulesBtn">🧠 Learn from Categorized</button>
                 </div>
             </div>
         </div>
@@ -57,7 +128,7 @@
             </div>
             <div class="summary-actions">
                 <button class="action-btn" id="exportBtn">📊 Export CSV</button>
-                <button class="action-btn" id="clearBtn">🗑️ Clear All</button>
+                <button class="action-btn secondary" id="clearBtn">🗑️ Clear</button>
             </div>
         </div>
     </div>
@@ -72,6 +143,25 @@
             <div class="modal-actions">
                 <button class="btn-secondary" id="cancelVault">Cancel</button>
                 <button class="btn-primary" id="saveVault">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rule modal -->
+    <div class="modal" id="ruleModal">
+        <div class="modal-content">
+            <h3>Create Auto-Rule</h3>
+            <input type="text" id="ruleKeyword" placeholder="Keyword to match (e.g., Woolworths)">
+            <select id="ruleVault">
+                <option value="">Select vault...</option>
+            </select>
+            <label class="checkbox-label">
+                <input type="checkbox" id="ruleCaseSensitive">
+                Case sensitive
+            </label>
+            <div class="modal-actions">
+                <button class="btn-secondary" id="cancelRule">Cancel</button>
+                <button class="btn-primary" id="saveRule">Create</button>
             </div>
         </div>
     </div>

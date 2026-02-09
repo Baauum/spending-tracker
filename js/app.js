@@ -1,11 +1,19 @@
-// Spending Tracker - Main App
+// Spending Tracker - Main App with Charts, Rules, Search & Mobile Support
 class SpendingTracker {
     constructor() {
         this.transactions = [];
         this.vaults = [];
+        this.rules = [];
         this.parser = new StatementParser();
         this.draggedElement = null;
         this.draggedTx = null;
+        this.charts = {};
+        this.filters = {
+            search: '',
+            source: 'all',
+            month: 'all',
+            status: 'all'
+        };
         
         this.loadFromStorage();
         this.initEventListeners();
@@ -15,11 +23,11 @@ class SpendingTracker {
     loadFromStorage() {
         const savedVaults = localStorage.getItem('spending_vaults');
         const savedTx = localStorage.getItem('spending_transactions');
+        const savedRules = localStorage.getItem('spending_rules');
         
         if (savedVaults) {
             this.vaults = JSON.parse(savedVaults);
         } else {
-            // Default vaults
             this.vaults = [
                 { id: 'housing', name: 'Housing', emoji: '🏠', budget: 1500 },
                 { id: 'groceries', name: 'Groceries', emoji: '🛒', budget: 400 },
@@ -37,35 +45,180 @@ class SpendingTracker {
         if (savedTx) {
             this.transactions = JSON.parse(savedTx);
         }
+        
+        if (savedRules) {
+            this.rules = JSON.parse(savedRules);
+        }
     }
 
     saveToStorage() {
         localStorage.setItem('spending_vaults', JSON.stringify(this.vaults));
         localStorage.setItem('spending_transactions', JSON.stringify(this.transactions));
+        localStorage.setItem('spending_rules', JSON.stringify(this.rules));
     }
 
     initEventListeners() {
+        // Tab navigation
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
+        });
+        
         // File upload
         document.getElementById('pdfUpload').addEventListener('change', (e) => this.handleFileUpload(e));
         
-        // Add vault button
+        // Search and filters
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            this.filters.search = e.target.value.toLowerCase();
+            this.applyFilters();
+        });
+        
+        document.getElementById('filterSource').addEventListener('change', (e) => {
+            this.filters.source = e.target.value;
+            this.applyFilters();
+        });
+        
+        document.getElementById('filterMonth').addEventListener('change', (e) => {
+            this.filters.month = e.target.value;
+            this.applyFilters();
+        });
+        
+        document.getElementById('filterStatus').addEventListener('change', (e) => {
+            this.filters.status = e.target.value;
+            this.applyFilters();
+        });
+        
+        // Vault modal
         document.getElementById('addVaultBtn').addEventListener('click', () => this.showVaultModal());
         document.getElementById('cancelVault').addEventListener('click', () => this.hideVaultModal());
         document.getElementById('saveVault').addEventListener('click', () => this.createVault());
-        
-        // Modal close on backdrop click
         document.getElementById('vaultModal').addEventListener('click', (e) => {
             if (e.target.id === 'vaultModal') this.hideVaultModal();
         });
+        
+        // Rule modal
+        document.getElementById('addRuleBtn').addEventListener('click', () => this.showRuleModal());
+        document.getElementById('cancelRule').addEventListener('click', () => this.hideRuleModal());
+        document.getElementById('saveRule').addEventListener('click', () => this.createRule());
+        document.getElementById('ruleModal').addEventListener('click', (e) => {
+            if (e.target.id === 'ruleModal') this.hideRuleModal();
+        });
+        
+        // Rule actions
+        document.getElementById('applyRulesBtn').addEventListener('click', () => this.applyAllRules());
+        document.getElementById('learnRulesBtn').addEventListener('click', () => this.learnFromCategorized());
         
         // Export and clear
         document.getElementById('exportBtn').addEventListener('click', () => this.exportCSV());
         document.getElementById('clearBtn').addEventListener('click', () => this.clearAll());
         
-        // Keyboard shortcut to close modal
+        // Chart year selector
+        document.getElementById('chartYear').addEventListener('change', () => this.updateCharts());
+        
+        // Keyboard
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') this.hideVaultModal();
+            if (e.key === 'Escape') {
+                this.hideVaultModal();
+                this.hideRuleModal();
+            }
         });
+        
+        // Touch support for mobile drag
+        this.initTouchDrag();
+    }
+
+    initTouchDrag() {
+        let touchStartX, touchStartY, touchedBubble, clone;
+        
+        document.addEventListener('touchstart', (e) => {
+            const bubble = e.target.closest('.bubble');
+            if (!bubble) return;
+            
+            touchedBubble = bubble;
+            const touch = e.touches[0];
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            
+            const txId = bubble.dataset.txId;
+            this.draggedTx = this.transactions.find(t => t.id === txId);
+        }, { passive: true });
+        
+        document.addEventListener('touchmove', (e) => {
+            if (!touchedBubble || !this.draggedTx) return;
+            
+            const touch = e.touches[0];
+            const dx = touch.clientX - touchStartX;
+            const dy = touch.clientY - touchStartY;
+            
+            if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+                e.preventDefault();
+                
+                if (!clone) {
+                    clone = touchedBubble.cloneNode(true);
+                    clone.style.position = 'fixed';
+                    clone.style.zIndex = '9999';
+                    clone.style.opacity = '0.8';
+                    clone.style.pointerEvents = 'none';
+                    document.body.appendChild(clone);
+                    touchedBubble.style.opacity = '0.3';
+                }
+                
+                const rect = touchedBubble.getBoundingClientRect();
+                clone.style.left = (touch.clientX - rect.width / 2) + 'px';
+                clone.style.top = (touch.clientY - rect.height / 2) + 'px';
+                
+                // Highlight drop zone
+                document.querySelectorAll('.vault-bubbles, #uncategorized').forEach(zone => {
+                    const zoneRect = zone.getBoundingClientRect();
+                    if (touch.clientX >= zoneRect.left && touch.clientX <= zoneRect.right &&
+                        touch.clientY >= zoneRect.top && touch.clientY <= zoneRect.bottom) {
+                        zone.classList.add('drag-over');
+                    } else {
+                        zone.classList.remove('drag-over');
+                    }
+                });
+            }
+        }, { passive: false });
+        
+        document.addEventListener('touchend', (e) => {
+            if (!touchedBubble || !this.draggedTx) return;
+            
+            if (clone) {
+                const touch = e.changedTouches[0];
+                document.querySelectorAll('.vault-bubbles, #uncategorized').forEach(zone => {
+                    const rect = zone.getBoundingClientRect();
+                    if (touch.clientX >= rect.left && touch.clientX <= rect.right &&
+                        touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+                        const vaultId = zone.dataset.vault;
+                        this.draggedTx.vault = vaultId === 'uncategorized' ? null : vaultId;
+                        this.saveToStorage();
+                        this.render();
+                    }
+                    zone.classList.remove('drag-over');
+                });
+                
+                clone.remove();
+                clone = null;
+                touchedBubble.style.opacity = '1';
+            }
+            
+            touchedBubble = null;
+            this.draggedTx = null;
+        });
+    }
+
+    switchTab(tabId) {
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.tab === tabId);
+        });
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.toggle('active', content.id === `tab-${tabId}`);
+        });
+        
+        if (tabId === 'charts') {
+            this.updateCharts();
+        } else if (tabId === 'rules') {
+            this.renderRules();
+        }
     }
 
     async handleFileUpload(event) {
@@ -78,7 +231,6 @@ class SpendingTracker {
             try {
                 const newTx = await this.parser.parsePDF(file);
                 
-                // Add transactions, avoiding duplicates
                 for (const tx of newTx) {
                     const exists = this.transactions.find(t => 
                         t.date === tx.date && 
@@ -86,6 +238,8 @@ class SpendingTracker {
                         t.description === tx.description
                     );
                     if (!exists) {
+                        // Apply auto-rules
+                        tx.vault = this.matchRule(tx.description);
                         this.transactions.push(tx);
                     }
                 }
@@ -99,13 +253,81 @@ class SpendingTracker {
         
         this.saveToStorage();
         this.render();
-        event.target.value = ''; // Reset input
+        this.updateMonthFilter();
+        event.target.value = '';
+    }
+
+    matchRule(description) {
+        for (const rule of this.rules) {
+            const keyword = rule.caseSensitive ? rule.keyword : rule.keyword.toLowerCase();
+            const desc = rule.caseSensitive ? description : description.toLowerCase();
+            if (desc.includes(keyword)) {
+                return rule.vaultId;
+            }
+        }
+        return null;
+    }
+
+    updateMonthFilter() {
+        const months = new Set();
+        this.transactions.forEach(tx => {
+            const month = tx.date.substring(0, 7);
+            months.add(month);
+        });
+        
+        const select = document.getElementById('filterMonth');
+        const currentValue = select.value;
+        select.innerHTML = '<option value="all">All Months</option>';
+        
+        Array.from(months).sort().reverse().forEach(month => {
+            const [year, m] = month.split('-');
+            const monthName = new Date(year, parseInt(m) - 1).toLocaleString('default', { month: 'short' });
+            select.innerHTML += `<option value="${month}">${monthName} ${year}</option>`;
+        });
+        
+        select.value = currentValue;
+    }
+
+    applyFilters() {
+        document.querySelectorAll('.bubble').forEach(bubble => {
+            const txId = bubble.dataset.txId;
+            const tx = this.transactions.find(t => t.id === txId);
+            if (!tx) return;
+            
+            let visible = true;
+            
+            if (this.filters.search && !tx.description.toLowerCase().includes(this.filters.search)) {
+                visible = false;
+            }
+            
+            if (this.filters.source !== 'all' && tx.source !== this.filters.source) {
+                visible = false;
+            }
+            
+            if (this.filters.month !== 'all' && !tx.date.startsWith(this.filters.month)) {
+                visible = false;
+            }
+            
+            if (this.filters.status === 'uncategorized' && tx.vault) {
+                visible = false;
+            }
+            if (this.filters.status === 'categorized' && !tx.vault) {
+                visible = false;
+            }
+            
+            bubble.classList.toggle('hidden', !visible);
+        });
+        
+        // Update count
+        const visibleUncategorized = document.querySelectorAll('#uncategorized .bubble:not(.hidden)').length;
+        document.getElementById('uncategorizedCount').textContent = visibleUncategorized;
     }
 
     render() {
         this.renderVaults();
         this.renderUncategorized();
         this.updateSummary();
+        this.updateMonthFilter();
         this.attachDragListeners();
     }
 
@@ -144,7 +366,7 @@ class SpendingTracker {
                 </div>
                 <div class="vault-actions">
                     <button class="vault-action-btn" onclick="app.editVault('${vault.id}')">✏️ Edit</button>
-                    <button class="vault-action-btn" onclick="app.deleteVault('${vault.id}')">🗑️ Delete</button>
+                    <button class="vault-action-btn" onclick="app.deleteVault('${vault.id}')">🗑️</button>
                 </div>
             `;
             grid.appendChild(vaultEl);
@@ -163,7 +385,7 @@ class SpendingTracker {
         const isCredit = tx.type === 'credit';
         return `
             <div class="bubble" draggable="true" data-tx-id="${tx.id}">
-                <span class="source-badge ${tx.source}">${tx.source === 'bank' ? 'Bank' : tx.source === 'amex' ? 'Amex' : 'Other'}</span>
+                <span class="source-badge ${tx.source}">${tx.source === 'bank' ? 'Bank' : tx.source === 'amex' ? 'Amex' : '?'}</span>
                 <span class="desc" title="${tx.description}">${tx.description}</span>
                 <span class="amount ${isCredit ? 'credit' : ''}">${isCredit ? '+' : '-'}$${tx.amount.toFixed(2)}</span>
             </div>
@@ -171,13 +393,11 @@ class SpendingTracker {
     }
 
     attachDragListeners() {
-        // Bubbles
         document.querySelectorAll('.bubble').forEach(bubble => {
             bubble.addEventListener('dragstart', (e) => this.handleDragStart(e));
             bubble.addEventListener('dragend', (e) => this.handleDragEnd(e));
         });
         
-        // Drop zones (vault-bubbles containers and uncategorized)
         document.querySelectorAll('.vault-bubbles, #uncategorized').forEach(zone => {
             zone.addEventListener('dragover', (e) => this.handleDragOver(e));
             zone.addEventListener('dragleave', (e) => this.handleDragLeave(e));
@@ -197,8 +417,6 @@ class SpendingTracker {
     handleDragEnd(e) {
         e.target.classList.remove('dragging');
         document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-        this.draggedElement = null;
-        this.draggedTx = null;
     }
 
     handleDragOver(e) {
@@ -226,6 +444,290 @@ class SpendingTracker {
         this.render();
     }
 
+    // Charts
+    updateCharts() {
+        const year = document.getElementById('chartYear').value;
+        this.renderMonthlyChart(year);
+        this.renderCategoryChart();
+        this.renderTrendChart(year);
+        this.renderTopCategories();
+    }
+
+    renderMonthlyChart(year) {
+        const ctx = document.getElementById('monthlyChart');
+        if (!ctx) return;
+        
+        const monthlyData = {};
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        
+        months.forEach((m, i) => {
+            const monthKey = `${year}-${String(i + 1).padStart(2, '0')}`;
+            monthlyData[monthKey] = 0;
+        });
+        
+        this.transactions.filter(t => t.type === 'debit' && t.date.startsWith(year)).forEach(tx => {
+            const monthKey = tx.date.substring(0, 7);
+            monthlyData[monthKey] = (monthlyData[monthKey] || 0) + tx.amount;
+        });
+        
+        if (this.charts.monthly) this.charts.monthly.destroy();
+        
+        this.charts.monthly = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: months,
+                datasets: [{
+                    label: 'Monthly Spending',
+                    data: Object.values(monthlyData),
+                    backgroundColor: '#38bdf8',
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { 
+                        grid: { color: '#334155' }, 
+                        ticks: { color: '#94a3b8', callback: v => '$' + v }
+                    },
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                }
+            }
+        });
+    }
+
+    renderCategoryChart() {
+        const ctx = document.getElementById('categoryChart');
+        if (!ctx) return;
+        
+        const categoryData = {};
+        this.transactions.filter(t => t.type === 'debit' && t.vault).forEach(tx => {
+            const vault = this.vaults.find(v => v.id === tx.vault);
+            if (vault) {
+                categoryData[vault.name] = (categoryData[vault.name] || 0) + tx.amount;
+            }
+        });
+        
+        const sorted = Object.entries(categoryData).sort((a, b) => b[1] - a[1]);
+        const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899', '#6366f1', '#64748b'];
+        
+        if (this.charts.category) this.charts.category.destroy();
+        
+        this.charts.category = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: sorted.map(c => c[0]),
+                datasets: [{
+                    data: sorted.map(c => c[1]),
+                    backgroundColor: colors,
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'right', labels: { color: '#94a3b8', padding: 8, font: { size: 11 } } }
+                }
+            }
+        });
+    }
+
+    renderTrendChart(year) {
+        const ctx = document.getElementById('trendChart');
+        if (!ctx) return;
+        
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const topVaults = this.vaults.slice(0, 4);
+        const colors = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b'];
+        
+        const datasets = topVaults.map((vault, idx) => {
+            const data = months.map((m, i) => {
+                const monthKey = `${year}-${String(i + 1).padStart(2, '0')}`;
+                return this.transactions
+                    .filter(t => t.vault === vault.id && t.type === 'debit' && t.date.startsWith(monthKey))
+                    .reduce((sum, t) => sum + t.amount, 0);
+            });
+            return {
+                label: vault.emoji + ' ' + vault.name,
+                data,
+                borderColor: colors[idx],
+                backgroundColor: colors[idx] + '20',
+                tension: 0.3,
+                fill: true
+            };
+        });
+        
+        if (this.charts.trend) this.charts.trend.destroy();
+        
+        this.charts.trend = new Chart(ctx, {
+            type: 'line',
+            data: { labels: months, datasets },
+            options: {
+                responsive: true,
+                plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10 } } } },
+                scales: {
+                    y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                }
+            }
+        });
+    }
+
+    renderTopCategories() {
+        const container = document.getElementById('topCategories');
+        if (!container) return;
+        
+        const categoryData = {};
+        this.transactions.filter(t => t.type === 'debit' && t.vault).forEach(tx => {
+            const vault = this.vaults.find(v => v.id === tx.vault);
+            if (vault) {
+                if (!categoryData[vault.id]) {
+                    categoryData[vault.id] = { name: vault.name, emoji: vault.emoji, total: 0 };
+                }
+                categoryData[vault.id].total += tx.amount;
+            }
+        });
+        
+        const sorted = Object.values(categoryData).sort((a, b) => b.total - a.total).slice(0, 5);
+        const max = sorted[0]?.total || 1;
+        const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6'];
+        
+        container.innerHTML = sorted.map((cat, i) => {
+            const pct = (cat.total / max) * 100;
+            return `
+                <div class="top-category-item">
+                    <span style="font-size: 20px">${cat.emoji}</span>
+                    <div class="top-category-bar">
+                        <div class="top-category-fill" style="width: ${pct}%; background: ${colors[i]}">${cat.name}</div>
+                    </div>
+                    <span class="top-category-amount">$${cat.total.toFixed(0)}</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // Auto-Rules
+    renderRules() {
+        const list = document.getElementById('rulesList');
+        const vaultSelect = document.getElementById('ruleVault');
+        
+        // Update vault select
+        vaultSelect.innerHTML = '<option value="">Select vault...</option>';
+        this.vaults.forEach(v => {
+            vaultSelect.innerHTML += `<option value="${v.id}">${v.emoji} ${v.name}</option>`;
+        });
+        
+        if (this.rules.length === 0) {
+            list.innerHTML = '<div class="no-data"><div class="no-data-icon">🤖</div>No rules yet. Add rules or learn from categorized transactions.</div>';
+            return;
+        }
+        
+        list.innerHTML = this.rules.map((rule, idx) => {
+            const vault = this.vaults.find(v => v.id === rule.vaultId);
+            return `
+                <div class="rule-item">
+                    <span class="rule-keyword">"${rule.keyword}"</span>
+                    <span class="rule-arrow">→</span>
+                    <span class="rule-vault">${vault ? vault.emoji + ' ' + vault.name : 'Unknown'}</span>
+                    <button class="rule-delete" onclick="app.deleteRule(${idx})">✕</button>
+                </div>
+            `;
+        }).join('');
+    }
+
+    showRuleModal() {
+        document.getElementById('ruleModal').classList.add('active');
+        document.getElementById('ruleKeyword').focus();
+    }
+
+    hideRuleModal() {
+        document.getElementById('ruleModal').classList.remove('active');
+        document.getElementById('ruleKeyword').value = '';
+        document.getElementById('ruleVault').value = '';
+        document.getElementById('ruleCaseSensitive').checked = false;
+    }
+
+    createRule() {
+        const keyword = document.getElementById('ruleKeyword').value.trim();
+        const vaultId = document.getElementById('ruleVault').value;
+        const caseSensitive = document.getElementById('ruleCaseSensitive').checked;
+        
+        if (!keyword || !vaultId) {
+            alert('Please enter a keyword and select a vault');
+            return;
+        }
+        
+        this.rules.push({ keyword, vaultId, caseSensitive });
+        this.saveToStorage();
+        this.hideRuleModal();
+        this.renderRules();
+    }
+
+    deleteRule(idx) {
+        this.rules.splice(idx, 1);
+        this.saveToStorage();
+        this.renderRules();
+    }
+
+    applyAllRules() {
+        let count = 0;
+        this.transactions.forEach(tx => {
+            if (!tx.vault) {
+                const match = this.matchRule(tx.description);
+                if (match) {
+                    tx.vault = match;
+                    count++;
+                }
+            }
+        });
+        
+        this.saveToStorage();
+        this.render();
+        alert(`Applied rules to ${count} transactions`);
+    }
+
+    learnFromCategorized() {
+        const wordCounts = {};
+        
+        // Count keywords per vault
+        this.transactions.filter(t => t.vault).forEach(tx => {
+            const words = tx.description.split(/\s+/).filter(w => w.length > 3);
+            words.forEach(word => {
+                const key = word.toLowerCase();
+                if (!wordCounts[key]) {
+                    wordCounts[key] = {};
+                }
+                wordCounts[key][tx.vault] = (wordCounts[key][tx.vault] || 0) + 1;
+            });
+        });
+        
+        // Find strong associations
+        let newRules = 0;
+        Object.entries(wordCounts).forEach(([word, vaultCounts]) => {
+            const total = Object.values(vaultCounts).reduce((a, b) => a + b, 0);
+            const [topVault, topCount] = Object.entries(vaultCounts).sort((a, b) => b[1] - a[1])[0];
+            
+            // If 80%+ of occurrences are in one vault, and at least 2 occurrences
+            if (topCount >= 2 && topCount / total >= 0.8) {
+                const exists = this.rules.find(r => r.keyword.toLowerCase() === word);
+                if (!exists) {
+                    this.rules.push({ keyword: word, vaultId: topVault, caseSensitive: false });
+                    newRules++;
+                }
+            }
+        });
+        
+        if (newRules > 0) {
+            this.saveToStorage();
+            this.renderRules();
+            alert(`Learned ${newRules} new rules from your categorizations`);
+        } else {
+            alert('No new patterns found. Categorize more transactions first.');
+        }
+    }
+
+    // Vault modals
     showVaultModal() {
         document.getElementById('vaultModal').classList.add('active');
         document.getElementById('vaultName').focus();
@@ -275,7 +777,6 @@ class SpendingTracker {
     deleteVault(vaultId) {
         if (!confirm('Delete this vault? Transactions will become uncategorized.')) return;
         
-        // Move transactions back to uncategorized
         this.transactions.forEach(tx => {
             if (tx.vault === vaultId) tx.vault = null;
         });
@@ -325,12 +826,11 @@ class SpendingTracker {
 
     clearAll() {
         if (!confirm('Clear all transactions? This cannot be undone.')) return;
-        
         this.transactions = [];
         this.saveToStorage();
         this.render();
     }
 }
 
-// Initialize app
+// Initialize
 const app = new SpendingTracker();
