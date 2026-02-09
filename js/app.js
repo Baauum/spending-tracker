@@ -1,4 +1,4 @@
-// Spending Tracker - Main App with Charts, Rules, Search & Mobile Support
+// Spending Tracker - Main App with Auth, Charts, Rules, Search & Mobile Support
 class SpendingTracker {
     constructor() {
         this.transactions = [];
@@ -14,44 +14,144 @@ class SpendingTracker {
             month: 'all',
             status: 'all'
         };
+        this.auth = null;
+        this.saveTimeout = null;
         
-        this.loadFromStorage();
-        this.initEventListeners();
-        this.render();
+        this.initAuth();
     }
 
-    loadFromStorage() {
+    initAuth() {
+        // Check if Firebase config is set
+        if (typeof firebaseConfig === 'undefined' || firebaseConfig.apiKey === 'YOUR_API_KEY') {
+            // No Firebase config - use localStorage mode
+            console.log('Running in local mode (no Firebase config)');
+            this.loadFromLocalStorage();
+            this.showApp();
+            this.initEventListeners();
+            this.render();
+            return;
+        }
+
+        // Initialize Firebase Auth
+        this.auth = new AuthManager(firebaseConfig);
+        
+        // Handle auth state changes
+        this.auth.onAuthChange = async (user) => {
+            if (user) {
+                this.showLoading();
+                await this.loadFromFirebase();
+                this.hideLoading();
+                this.showApp();
+                this.updateUserUI();
+                this.initEventListeners();
+                this.render();
+            } else {
+                this.showLogin();
+            }
+        };
+
+        // Google sign in button
+        document.getElementById('googleSignIn').addEventListener('click', async () => {
+            try {
+                await this.auth.signInWithGoogle();
+            } catch (error) {
+                alert('Sign in failed: ' + error.message);
+            }
+        });
+
+        // Logout button
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            await this.auth.signOut();
+        });
+    }
+
+    showLogin() {
+        document.getElementById('loginScreen').style.display = 'flex';
+        document.getElementById('mainApp').style.display = 'none';
+    }
+
+    showApp() {
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('mainApp').style.display = 'block';
+    }
+
+    showLoading() {
+        document.getElementById('loadingOverlay').classList.add('active');
+    }
+
+    hideLoading() {
+        document.getElementById('loadingOverlay').classList.remove('active');
+    }
+
+    updateUserUI() {
+        if (!this.auth) return;
+        
+        document.getElementById('userAvatar').src = this.auth.getUserPhoto() || '';
+        document.getElementById('userName').textContent = this.auth.getUserName() || this.auth.getUserEmail();
+    }
+
+    async loadFromFirebase() {
+        try {
+            const data = await this.auth.loadAll();
+            if (data) {
+                this.transactions = data.transactions || [];
+                this.vaults = data.vaults || this.getDefaultVaults();
+                this.rules = data.rules || [];
+            } else {
+                this.vaults = this.getDefaultVaults();
+            }
+        } catch (error) {
+            console.error('Error loading from Firebase:', error);
+            this.vaults = this.getDefaultVaults();
+        }
+    }
+
+    loadFromLocalStorage() {
         const savedVaults = localStorage.getItem('spending_vaults');
         const savedTx = localStorage.getItem('spending_transactions');
         const savedRules = localStorage.getItem('spending_rules');
         
-        if (savedVaults) {
-            this.vaults = JSON.parse(savedVaults);
-        } else {
-            this.vaults = [
-                { id: 'housing', name: 'Housing', emoji: '🏠', budget: 1500 },
-                { id: 'groceries', name: 'Groceries', emoji: '🛒', budget: 400 },
-                { id: 'dining', name: 'Dining Out', emoji: '🍽️', budget: 300 },
-                { id: 'transport', name: 'Transport', emoji: '🚗', budget: 400 },
-                { id: 'shopping', name: 'Shopping', emoji: '🛍️', budget: 200 },
-                { id: 'subscriptions', name: 'Subscriptions', emoji: '📱', budget: 100 },
-                { id: 'insurance', name: 'Insurance', emoji: '🛡️', budget: 300 },
-                { id: 'entertainment', name: 'Entertainment', emoji: '🎉', budget: 150 },
-                { id: 'travel', name: 'Travel', emoji: '✈️', budget: 500 },
-                { id: 'health', name: 'Health', emoji: '💊', budget: 100 },
-            ];
-        }
-        
-        if (savedTx) {
-            this.transactions = JSON.parse(savedTx);
-        }
-        
-        if (savedRules) {
-            this.rules = JSON.parse(savedRules);
-        }
+        this.vaults = savedVaults ? JSON.parse(savedVaults) : this.getDefaultVaults();
+        this.transactions = savedTx ? JSON.parse(savedTx) : [];
+        this.rules = savedRules ? JSON.parse(savedRules) : [];
+    }
+
+    getDefaultVaults() {
+        return [
+            { id: 'housing', name: 'Housing', emoji: '🏠', budget: 1500 },
+            { id: 'groceries', name: 'Groceries', emoji: '🛒', budget: 400 },
+            { id: 'dining', name: 'Dining Out', emoji: '🍽️', budget: 300 },
+            { id: 'transport', name: 'Transport', emoji: '🚗', budget: 400 },
+            { id: 'shopping', name: 'Shopping', emoji: '🛍️', budget: 200 },
+            { id: 'subscriptions', name: 'Subscriptions', emoji: '📱', budget: 100 },
+            { id: 'insurance', name: 'Insurance', emoji: '🛡️', budget: 300 },
+            { id: 'entertainment', name: 'Entertainment', emoji: '🎉', budget: 150 },
+            { id: 'travel', name: 'Travel', emoji: '✈️', budget: 500 },
+            { id: 'health', name: 'Health', emoji: '💊', budget: 100 },
+        ];
     }
 
     saveToStorage() {
+        // Debounce saves to avoid too many writes
+        if (this.saveTimeout) clearTimeout(this.saveTimeout);
+        
+        this.saveTimeout = setTimeout(async () => {
+            if (this.auth && this.auth.isLoggedIn()) {
+                try {
+                    await this.auth.saveAll(this.transactions, this.vaults, this.rules);
+                    console.log('Saved to cloud');
+                } catch (error) {
+                    console.error('Error saving to Firebase:', error);
+                    // Fallback to localStorage
+                    this.saveToLocalStorage();
+                }
+            } else {
+                this.saveToLocalStorage();
+            }
+        }, 1000);
+    }
+
+    saveToLocalStorage() {
         localStorage.setItem('spending_vaults', JSON.stringify(this.vaults));
         localStorage.setItem('spending_transactions', JSON.stringify(this.transactions));
         localStorage.setItem('spending_rules', JSON.stringify(this.rules));
