@@ -392,6 +392,15 @@ class SpendingTracker {
                 clone.style.left = (touch.clientX - rect.width / 2) + 'px';
                 clone.style.top = (touch.clientY - rect.height / 2) + 'px';
                 
+                // Auto-scroll on touch near edges
+                const edgeZone = 80;
+                const viewportHeight = window.innerHeight;
+                if (touch.clientY < edgeZone) {
+                    window.scrollBy(0, -10);
+                } else if (touch.clientY > viewportHeight - edgeZone) {
+                    window.scrollBy(0, 10);
+                }
+                
                 // Highlight drop zone
                 document.querySelectorAll('.vault-bubbles, #uncategorized, #incomeContainer').forEach(zone => {
                     const zoneRect = zone.getBoundingClientRect();
@@ -737,11 +746,44 @@ class SpendingTracker {
         e.target.classList.add('dragging');
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', txId);
+        
+        // Start auto-scroll listener
+        this.startAutoScroll();
     }
 
     handleDragEnd(e) {
         e.target.classList.remove('dragging');
         document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+        
+        // Stop auto-scroll
+        this.stopAutoScroll();
+    }
+
+    startAutoScroll() {
+        const scrollSpeed = 8;
+        const edgeZone = 80; // pixels from edge to trigger scroll
+        
+        this.autoScrollHandler = (e) => {
+            const y = e.clientY;
+            const viewportHeight = window.innerHeight;
+            
+            if (y < edgeZone) {
+                // Near top - scroll up
+                window.scrollBy(0, -scrollSpeed);
+            } else if (y > viewportHeight - edgeZone) {
+                // Near bottom - scroll down
+                window.scrollBy(0, scrollSpeed);
+            }
+        };
+        
+        document.addEventListener('dragover', this.autoScrollHandler);
+    }
+
+    stopAutoScroll() {
+        if (this.autoScrollHandler) {
+            document.removeEventListener('dragover', this.autoScrollHandler);
+            this.autoScrollHandler = null;
+        }
     }
 
     handleDragOver(e) {
