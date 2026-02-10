@@ -222,6 +222,51 @@
         <div class="context-menu-item danger" id="ctxDelete">🗑️ Delete</div>
     </div>
 
+    <!-- Transaction Detail Modal -->
+    <div class="modal" id="txDetailModal">
+        <div class="modal-content tx-detail-content">
+            <h3>📋 Transaction Details</h3>
+            <div class="tx-detail-grid">
+                <div class="tx-detail-row">
+                    <span class="tx-detail-label">Date</span>
+                    <span class="tx-detail-value" id="txDetailDate"></span>
+                </div>
+                <div class="tx-detail-row">
+                    <span class="tx-detail-label">Amount</span>
+                    <span class="tx-detail-value" id="txDetailAmount"></span>
+                </div>
+                <div class="tx-detail-row">
+                    <span class="tx-detail-label">Type</span>
+                    <span class="tx-detail-value" id="txDetailType"></span>
+                </div>
+                <div class="tx-detail-row">
+                    <span class="tx-detail-label">Source</span>
+                    <span class="tx-detail-value" id="txDetailSource"></span>
+                </div>
+                <div class="tx-detail-row">
+                    <span class="tx-detail-label">Category</span>
+                    <span class="tx-detail-value" id="txDetailVault"></span>
+                </div>
+                <div class="tx-detail-row full-width">
+                    <span class="tx-detail-label">Description</span>
+                    <span class="tx-detail-value" id="txDetailDesc"></span>
+                </div>
+                <div class="tx-detail-row full-width" id="txOriginalRow">
+                    <span class="tx-detail-label">Original</span>
+                    <span class="tx-detail-value tx-original" id="txDetailOriginal"></span>
+                </div>
+                <div class="tx-detail-row full-width">
+                    <span class="tx-detail-label">Notes</span>
+                    <textarea class="tx-detail-notes" id="txDetailNotes" placeholder="Add notes..."></textarea>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" id="closeTxDetail">Close</button>
+                <button class="btn-primary" id="saveTxDetail">Save Notes</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Firebase Config -->
     <script>
         const firebaseConfig = {

@@ -361,6 +361,85 @@ header h1 {
     background: rgba(239, 68, 68, 0.1);
 }
 
+/* Transaction Detail Modal */
+.tx-detail-content {
+    max-width: 450px;
+}
+
+.tx-detail-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.tx-detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 15px;
+}
+
+.tx-detail-row.full-width {
+    flex-direction: column;
+    gap: 6px;
+}
+
+.tx-detail-label {
+    color: var(--text-secondary);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+}
+
+.tx-detail-value {
+    color: var(--text-primary);
+    font-weight: 500;
+    text-align: right;
+}
+
+.tx-detail-row.full-width .tx-detail-value {
+    text-align: left;
+    word-break: break-word;
+}
+
+.tx-original {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-family: monospace;
+    background: var(--bg-tertiary);
+    padding: 8px;
+    border-radius: 6px;
+    width: 100%;
+}
+
+.tx-detail-notes {
+    width: 100%;
+    min-height: 80px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: 14px;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.tx-detail-notes:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.tx-detail-value.credit {
+    color: var(--success);
+}
+
+.tx-detail-value.debit {
+    color: var(--danger);
+}
+
 .bubble .source-badge {
     font-size: 9px;
     padding: 2px 5px;

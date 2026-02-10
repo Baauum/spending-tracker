@@ -172,6 +172,9 @@ class SpendingTracker {
         // Context menu
         this.initContextMenu();
         
+        // Transaction detail modal
+        this.initTxDetailModal();
+        
         // Search and filters
         document.getElementById('searchInput').addEventListener('input', (e) => {
             this.filters.search = e.target.value.toLowerCase();
@@ -326,10 +329,90 @@ class SpendingTracker {
         if (!this.contextTx) return;
         const newName = prompt('Edit transaction name:', this.contextTx.description);
         if (newName !== null && newName.trim()) {
+            // Preserve original description
+            if (!this.contextTx.originalDesc) {
+                this.contextTx.originalDesc = this.contextTx.description;
+            }
             this.contextTx.description = newName.trim();
             this.saveToStorage();
             this.render();
         }
+    }
+
+    initTxDetailModal() {
+        const modal = document.getElementById('txDetailModal');
+        
+        document.getElementById('closeTxDetail').addEventListener('click', () => {
+            modal.classList.remove('active');
+        });
+        
+        document.getElementById('saveTxDetail').addEventListener('click', () => {
+            this.saveTxNotes();
+        });
+        
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.classList.remove('active');
+        });
+        
+        // Double-click on bubbles
+        document.addEventListener('dblclick', (e) => {
+            const bubble = e.target.closest('.bubble');
+            if (bubble) {
+                const txId = bubble.dataset.txId;
+                const tx = this.transactions.find(t => t.id === txId);
+                if (tx) {
+                    this.showTxDetail(tx);
+                }
+            }
+        });
+    }
+
+    showTxDetail(tx) {
+        this.detailTx = tx;
+        
+        // Format date with day of week
+        const date = new Date(tx.date);
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const formattedDate = `${dayNames[date.getDay()]}, ${date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+        
+        document.getElementById('txDetailDate').textContent = formattedDate;
+        
+        const amountEl = document.getElementById('txDetailAmount');
+        amountEl.textContent = `${tx.type === 'credit' ? '+' : '-'}$${tx.amount.toFixed(2)}`;
+        amountEl.className = `tx-detail-value ${tx.type}`;
+        
+        document.getElementById('txDetailType').textContent = tx.type === 'credit' ? '💰 Credit' : '💸 Debit';
+        document.getElementById('txDetailSource').textContent = tx.source === 'bank' ? '🏦 Bank' : '💳 Amex';
+        
+        // Vault/category
+        const vault = this.vaults.find(v => v.id === tx.vault);
+        document.getElementById('txDetailVault').textContent = vault ? `${vault.emoji} ${vault.name}` : (tx.vault === 'income' ? '💰 Income' : '📥 Uncategorized');
+        
+        document.getElementById('txDetailDesc').textContent = tx.description;
+        
+        // Original description (if edited)
+        const originalRow = document.getElementById('txOriginalRow');
+        if (tx.originalDesc && tx.originalDesc !== tx.description) {
+            document.getElementById('txDetailOriginal').textContent = tx.originalDesc;
+            originalRow.style.display = 'flex';
+        } else {
+            originalRow.style.display = 'none';
+        }
+        
+        // Notes
+        document.getElementById('txDetailNotes').value = tx.notes || '';
+        
+        document.getElementById('txDetailModal').classList.add('active');
+    }
+
+    saveTxNotes() {
+        if (!this.detailTx) return;
+        
+        const notes = document.getElementById('txDetailNotes').value.trim();
+        this.detailTx.notes = notes || null;
+        
+        this.saveToStorage();
+        document.getElementById('txDetailModal').classList.remove('active');
     }
 
     moveToIncome() {
