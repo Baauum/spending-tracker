@@ -11,9 +11,9 @@ class SpendingTracker {
         this.filters = {
             search: '',
             source: 'all',
-            month: 'all',
             status: 'all'
         };
+        this.selectedMonth = null; // null = current month, 'all' = all months
         this.auth = null;
         this.saveTimeout = null;
         
@@ -186,11 +186,6 @@ class SpendingTracker {
         
         document.getElementById('filterSource').addEventListener('change', (e) => {
             this.filters.source = e.target.value;
-            this.applyFilters();
-        });
-        
-        document.getElementById('filterMonth').addEventListener('change', (e) => {
-            this.filters.month = e.target.value;
             this.applyFilters();
         });
         
@@ -659,7 +654,6 @@ class SpendingTracker {
         
         this.saveToStorage();
         this.render();
-        this.updateMonthFilter();
         event.target.value = '';
     }
 
@@ -672,26 +666,6 @@ class SpendingTracker {
             }
         }
         return null;
-    }
-
-    updateMonthFilter() {
-        const months = new Set();
-        this.transactions.forEach(tx => {
-            const month = tx.date.substring(0, 7);
-            months.add(month);
-        });
-        
-        const select = document.getElementById('filterMonth');
-        const currentValue = select.value;
-        select.innerHTML = '<option value="all">All Months</option>';
-        
-        Array.from(months).sort().reverse().forEach(month => {
-            const [year, m] = month.split('-');
-            const monthName = new Date(year, parseInt(m) - 1).toLocaleString('default', { month: 'short' });
-            select.innerHTML += `<option value="${month}">${monthName} ${year}</option>`;
-        });
-        
-        select.value = currentValue;
     }
 
     applyFilters() {
@@ -707,10 +681,6 @@ class SpendingTracker {
             }
             
             if (this.filters.source !== 'all' && tx.source !== this.filters.source) {
-                visible = false;
-            }
-            
-            if (this.filters.month !== 'all' && !tx.date.startsWith(this.filters.month)) {
                 visible = false;
             }
             
@@ -730,19 +700,80 @@ class SpendingTracker {
     }
 
     render() {
+        this.renderMonthTabs();
         this.renderIncome();
         this.renderVaults();
         this.renderUncategorized();
         this.updateSummary();
-        this.updateMonthFilter();
         this.attachDragListeners();
+    }
+
+    getFilteredTransactions() {
+        // Filter by selected month
+        if (!this.selectedMonth || this.selectedMonth === 'all') {
+            return this.transactions;
+        }
+        return this.transactions.filter(t => t.date && t.date.startsWith(this.selectedMonth));
+    }
+
+    renderMonthTabs() {
+        const container = document.getElementById('monthTabs');
+        if (!container) return;
+        
+        // Get unique months from transactions
+        const months = new Set();
+        this.transactions.forEach(tx => {
+            if (tx.date) {
+                const month = tx.date.substring(0, 7);
+                months.add(month);
+            }
+        });
+        
+        // Sort months descending (newest first)
+        const sortedMonths = Array.from(months).sort().reverse();
+        
+        // Default to current month if not set
+        if (!this.selectedMonth && sortedMonths.length > 0) {
+            const currentMonth = new Date().toISOString().substring(0, 7);
+            this.selectedMonth = sortedMonths.includes(currentMonth) ? currentMonth : sortedMonths[0];
+        }
+        
+        // Build tabs
+        let html = `<button class="month-tab ${this.selectedMonth === 'all' ? 'active' : ''}" data-month="all">
+            <span class="month-tab-name">All</span>
+            <span class="month-tab-total">${this.transactions.length} tx</span>
+        </button>`;
+        
+        sortedMonths.forEach(month => {
+            const [year, m] = month.split('-');
+            const monthName = new Date(year, parseInt(m) - 1).toLocaleString('default', { month: 'short' });
+            const monthTx = this.transactions.filter(t => t.date && t.date.startsWith(month));
+            const monthTotal = monthTx.filter(t => t.type === 'debit').reduce((sum, t) => sum + t.amount, 0);
+            const isActive = this.selectedMonth === month;
+            
+            html += `<button class="month-tab ${isActive ? 'active' : ''}" data-month="${month}">
+                <span class="month-tab-name">${monthName} ${year.slice(2)}</span>
+                <span class="month-tab-total">$${monthTotal.toFixed(0)}</span>
+            </button>`;
+        });
+        
+        container.innerHTML = html;
+        
+        // Attach click handlers
+        container.querySelectorAll('.month-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.selectedMonth = tab.dataset.month;
+                this.render();
+            });
+        });
     }
 
     renderIncome() {
         const container = document.getElementById('incomeContainer');
+        const filtered = this.getFilteredTransactions();
         
-        // Only show items explicitly in income vault (don't auto-assign)
-        const incomeInVault = this.transactions.filter(t => t.vault === 'income');
+        // Only show items explicitly in income vault
+        const incomeInVault = filtered.filter(t => t.vault === 'income');
         container.innerHTML = incomeInVault.map(tx => this.renderBubble(tx)).join('');
         document.getElementById('incomeCount').textContent = incomeInVault.length;
         
@@ -754,9 +785,10 @@ class SpendingTracker {
     renderVaults() {
         const grid = document.getElementById('vaultsGrid');
         grid.innerHTML = '';
+        const filtered = this.getFilteredTransactions();
         
-        // Calculate total spending across all vaults
-        const allVaultTx = this.transactions.filter(t => t.vault && t.vault !== 'income');
+        // Calculate total spending across all vaults (for selected month)
+        const allVaultTx = filtered.filter(t => t.vault && t.vault !== 'income');
         const totalSpent = allVaultTx.filter(t => t.type === 'debit').reduce((sum, t) => sum + t.amount, 0);
         const totalReceived = allVaultTx.filter(t => t.type === 'credit').reduce((sum, t) => sum + t.amount, 0);
         const totalNet = totalSpent - totalReceived;
@@ -769,7 +801,7 @@ class SpendingTracker {
         }
         
         for (const vault of this.vaults) {
-            const vaultTx = this.transactions.filter(t => t.vault === vault.id);
+            const vaultTx = filtered.filter(t => t.vault === vault.id);
             const debits = vaultTx.filter(t => t.type === 'debit').reduce((sum, t) => sum + t.amount, 0);
             const credits = vaultTx.filter(t => t.type === 'credit').reduce((sum, t) => sum + t.amount, 0);
             const total = debits - credits; // Net amount
@@ -818,8 +850,10 @@ class SpendingTracker {
 
     renderUncategorized() {
         const container = document.getElementById('uncategorized');
-        // Show all uncategorized items (both debits and credits)
-        const uncategorized = this.transactions.filter(t => !t.vault);
+        const filtered = this.getFilteredTransactions();
+        
+        // Show all uncategorized items (both debits and credits) for selected month
+        const uncategorized = filtered.filter(t => !t.vault);
         
         container.innerHTML = uncategorized.map(tx => this.renderBubble(tx)).join('');
         document.getElementById('uncategorizedCount').textContent = uncategorized.length;
