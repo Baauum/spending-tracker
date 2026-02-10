@@ -781,12 +781,10 @@ class SpendingTracker {
             vaultEl.className = 'vault draggable';
             vaultEl.draggable = true;
             vaultEl.dataset.vaultId = vault.id;
-            // Show spent amount, and net if there are credits
-            const spentDisplay = `<span style="color: #ef4444">-$${debits.toFixed(2)}</span>`;
-            const netDisplay = credits > 0 ? 
-                `<span style="font-size: 12px; color: ${color}; margin-left: 8px;">Net: $${total.toFixed(2)}</span>` : '';
-            const creditDisplay = credits > 0 ?
-                `<span style="font-size: 11px; color: #22c55e; display: block;">+$${credits.toFixed(2)} received</span>` : '';
+            // Show just the net value
+            const netColor = total >= 0 ? '#ef4444' : '#22c55e';
+            const netPrefix = total >= 0 ? '-' : '+';
+            const netValue = Math.abs(total);
             
             vaultEl.innerHTML = `
                 <div class="vault-header">
@@ -794,9 +792,8 @@ class SpendingTracker {
                         <span class="vault-emoji">${vault.emoji}</span>
                         <span class="vault-name">${vault.name}</span>
                     </div>
-                    <div class="vault-total">${spentDisplay}${netDisplay}</div>
+                    <div class="vault-total" style="color: ${netColor}">${netPrefix}$${netValue.toFixed(2)}</div>
                 </div>
-                ${creditDisplay}
                 ${vault.budget ? `
                     <div class="vault-budget" onclick="app.editBudget('${vault.id}')" style="cursor: pointer;" title="Click to edit budget">
                         📊 Budget: $${vault.budget} 
