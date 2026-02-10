@@ -790,7 +790,11 @@ class SpendingTracker {
             });
             
             vault.addEventListener('drop', (e) => {
-                if (!this.draggingVault) return;
+                // Only handle vault reordering if we're dragging a vault
+                if (!this.draggingVault) {
+                    // Not dragging a vault - let the event bubble to vault-bubbles
+                    return;
+                }
                 e.preventDefault();
                 e.stopPropagation();
                 
@@ -823,12 +827,19 @@ class SpendingTracker {
     }
 
     handleDragStart(e) {
-        const txId = e.target.dataset.txId;
+        const bubble = e.target.closest('.bubble');
+        if (!bubble) return;
+        
+        const txId = bubble.dataset.txId;
+        if (!txId) return;
+        
         this.draggedTx = this.transactions.find(t => t.id === txId);
-        this.draggedElement = e.target;
-        e.target.classList.add('dragging');
+        this.draggedElement = bubble;
+        bubble.classList.add('dragging');
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', txId);
+        
+        console.log('Drag start:', txId, this.draggedTx?.description);
         
         // Start auto-scroll listener
         this.startAutoScroll();
@@ -881,13 +892,24 @@ class SpendingTracker {
 
     handleDrop(e) {
         e.preventDefault();
+        e.stopPropagation();
         e.currentTarget.classList.remove('drag-over');
         
+        // Skip if we're dragging a vault (vault reorder)
+        if (this.draggingVault) return;
+        
         const txId = e.dataTransfer.getData('text/plain');
+        if (!txId) return;
+        
         const tx = this.transactions.find(t => t.id === txId);
-        if (!tx) return;
+        if (!tx) {
+            console.error('Transaction not found:', txId);
+            return;
+        }
         
         const vaultId = e.currentTarget.dataset.vault;
+        console.log('Dropping tx', txId, 'into vault', vaultId);
+        
         tx.vault = vaultId === 'uncategorized' ? null : vaultId;
         
         this.saveToStorage();
