@@ -590,7 +590,9 @@ class SpendingTracker {
             const color = overBudget ? '#ef4444' : '#22c55e';
             
             const vaultEl = document.createElement('div');
-            vaultEl.className = 'vault';
+            vaultEl.className = 'vault draggable';
+            vaultEl.draggable = true;
+            vaultEl.dataset.vaultId = vault.id;
             vaultEl.innerHTML = `
                 <div class="vault-header">
                     <div class="vault-title">
@@ -615,6 +617,7 @@ class SpendingTracker {
                     <button class="vault-action-btn" onclick="app.editVault('${vault.id}')">✏️ Edit</button>
                     <button class="vault-action-btn" onclick="app.deleteVault('${vault.id}')">🗑️</button>
                 </div>
+                <div class="vault-drag-handle" title="Drag to reorder">⋮⋮</div>
             `;
             grid.appendChild(vaultEl);
         }
@@ -650,6 +653,81 @@ class SpendingTracker {
             zone.addEventListener('dragleave', (e) => this.handleDragLeave(e));
             zone.addEventListener('drop', (e) => this.handleDrop(e));
         });
+        
+        // Vault reordering drag
+        this.attachVaultDragListeners();
+    }
+
+    attachVaultDragListeners() {
+        const vaults = document.querySelectorAll('.vault.draggable');
+        
+        vaults.forEach(vault => {
+            vault.addEventListener('dragstart', (e) => {
+                // Only allow drag from the handle or vault header
+                if (!e.target.closest('.vault-drag-handle') && !e.target.closest('.vault-header')) {
+                    // Check if dragging a bubble inside the vault
+                    if (e.target.closest('.bubble')) return;
+                }
+                
+                e.stopPropagation();
+                this.draggingVault = vault.dataset.vaultId;
+                vault.classList.add('dragging-vault');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('vault-id', vault.dataset.vaultId);
+            });
+            
+            vault.addEventListener('dragend', () => {
+                vault.classList.remove('dragging-vault');
+                document.querySelectorAll('.vault').forEach(v => v.classList.remove('drop-target'));
+                this.draggingVault = null;
+            });
+            
+            vault.addEventListener('dragover', (e) => {
+                if (!this.draggingVault) return;
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Don't show drop target on self
+                if (vault.dataset.vaultId === this.draggingVault) return;
+                
+                vault.classList.add('drop-target');
+            });
+            
+            vault.addEventListener('dragleave', (e) => {
+                vault.classList.remove('drop-target');
+            });
+            
+            vault.addEventListener('drop', (e) => {
+                if (!this.draggingVault) return;
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const fromId = this.draggingVault;
+                const toId = vault.dataset.vaultId;
+                
+                if (fromId !== toId) {
+                    this.reorderVaults(fromId, toId);
+                }
+                
+                vault.classList.remove('drop-target');
+            });
+        });
+    }
+
+    reorderVaults(fromId, toId) {
+        const fromIndex = this.vaults.findIndex(v => v.id === fromId);
+        const toIndex = this.vaults.findIndex(v => v.id === toId);
+        
+        if (fromIndex === -1 || toIndex === -1) return;
+        
+        // Remove the vault from its current position
+        const [movedVault] = this.vaults.splice(fromIndex, 1);
+        
+        // Insert it at the new position
+        this.vaults.splice(toIndex, 0, movedVault);
+        
+        this.saveToStorage();
+        this.render();
     }
 
     handleDragStart(e) {
