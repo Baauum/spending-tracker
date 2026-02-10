@@ -166,6 +166,12 @@ class SpendingTracker {
         // File upload
         document.getElementById('pdfUpload').addEventListener('change', (e) => this.handleFileUpload(e));
         
+        // Expand/collapse uncategorized
+        document.getElementById('expandBtn').addEventListener('click', () => this.toggleExpand());
+        
+        // Context menu
+        this.initContextMenu();
+        
         // Search and filters
         document.getElementById('searchInput').addEventListener('input', (e) => {
             this.filters.search = e.target.value.toLowerCase();
@@ -226,6 +232,126 @@ class SpendingTracker {
         this.initTouchDrag();
     }
 
+    toggleExpand() {
+        const section = document.getElementById('uncategorizedSection');
+        const btn = document.getElementById('expandBtn');
+        section.classList.toggle('expanded');
+        btn.textContent = section.classList.contains('expanded') ? '⬆️ Collapse' : '⬇️ Expand';
+    }
+
+    initContextMenu() {
+        const menu = document.getElementById('contextMenu');
+        this.contextTx = null;
+        
+        // Right-click on bubbles
+        document.addEventListener('contextmenu', (e) => {
+            const bubble = e.target.closest('.bubble');
+            if (bubble) {
+                e.preventDefault();
+                const txId = bubble.dataset.txId;
+                this.contextTx = this.transactions.find(t => t.id === txId);
+                
+                // Update menu option based on transaction type
+                const moveItem = document.getElementById('ctxMove');
+                if (this.contextTx.vault === 'income') {
+                    moveItem.textContent = '📥 Move to Uncategorized';
+                } else if (this.contextTx.type === 'credit') {
+                    moveItem.textContent = '💰 Move to Income';
+                } else {
+                    moveItem.style.display = 'none';
+                }
+                
+                menu.style.left = e.pageX + 'px';
+                menu.style.top = e.pageY + 'px';
+                menu.classList.add('active');
+            }
+        });
+        
+        // Long-press for mobile
+        let pressTimer;
+        document.addEventListener('touchstart', (e) => {
+            const bubble = e.target.closest('.bubble');
+            if (bubble) {
+                pressTimer = setTimeout(() => {
+                    const txId = bubble.dataset.txId;
+                    this.contextTx = this.transactions.find(t => t.id === txId);
+                    
+                    const moveItem = document.getElementById('ctxMove');
+                    if (this.contextTx.vault === 'income') {
+                        moveItem.textContent = '📥 Move to Uncategorized';
+                        moveItem.style.display = 'block';
+                    } else if (this.contextTx.type === 'credit') {
+                        moveItem.textContent = '💰 Move to Income';
+                        moveItem.style.display = 'block';
+                    } else {
+                        moveItem.style.display = 'none';
+                    }
+                    
+                    const touch = e.touches[0];
+                    menu.style.left = touch.pageX + 'px';
+                    menu.style.top = touch.pageY + 'px';
+                    menu.classList.add('active');
+                }, 500);
+            }
+        }, { passive: true });
+        
+        document.addEventListener('touchend', () => clearTimeout(pressTimer));
+        document.addEventListener('touchmove', () => clearTimeout(pressTimer));
+        
+        // Close menu on click outside
+        document.addEventListener('click', (e) => {
+            if (!menu.contains(e.target)) {
+                menu.classList.remove('active');
+            }
+        });
+        
+        // Menu actions
+        document.getElementById('ctxEdit').addEventListener('click', () => {
+            this.editTransaction();
+            menu.classList.remove('active');
+        });
+        
+        document.getElementById('ctxMove').addEventListener('click', () => {
+            this.moveToIncome();
+            menu.classList.remove('active');
+        });
+        
+        document.getElementById('ctxDelete').addEventListener('click', () => {
+            this.deleteTransaction();
+            menu.classList.remove('active');
+        });
+    }
+
+    editTransaction() {
+        if (!this.contextTx) return;
+        const newName = prompt('Edit transaction name:', this.contextTx.description);
+        if (newName !== null && newName.trim()) {
+            this.contextTx.description = newName.trim();
+            this.saveToStorage();
+            this.render();
+        }
+    }
+
+    moveToIncome() {
+        if (!this.contextTx) return;
+        if (this.contextTx.vault === 'income') {
+            this.contextTx.vault = null;
+        } else {
+            this.contextTx.vault = 'income';
+        }
+        this.saveToStorage();
+        this.render();
+    }
+
+    deleteTransaction() {
+        if (!this.contextTx) return;
+        if (confirm(`Delete "${this.contextTx.description}"?`)) {
+            this.transactions = this.transactions.filter(t => t.id !== this.contextTx.id);
+            this.saveToStorage();
+            this.render();
+        }
+    }
+
     initTouchDrag() {
         let touchStartX, touchStartY, touchedBubble, clone;
         
@@ -267,7 +393,7 @@ class SpendingTracker {
                 clone.style.top = (touch.clientY - rect.height / 2) + 'px';
                 
                 // Highlight drop zone
-                document.querySelectorAll('.vault-bubbles, #uncategorized').forEach(zone => {
+                document.querySelectorAll('.vault-bubbles, #uncategorized, #incomeContainer').forEach(zone => {
                     const zoneRect = zone.getBoundingClientRect();
                     if (touch.clientX >= zoneRect.left && touch.clientX <= zoneRect.right &&
                         touch.clientY >= zoneRect.top && touch.clientY <= zoneRect.bottom) {
@@ -284,7 +410,7 @@ class SpendingTracker {
             
             if (clone) {
                 const touch = e.changedTouches[0];
-                document.querySelectorAll('.vault-bubbles, #uncategorized').forEach(zone => {
+                document.querySelectorAll('.vault-bubbles, #uncategorized, #incomeContainer').forEach(zone => {
                     const rect = zone.getBoundingClientRect();
                     if (touch.clientX >= rect.left && touch.clientX <= rect.right &&
                         touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
@@ -424,11 +550,32 @@ class SpendingTracker {
     }
 
     render() {
+        this.renderIncome();
         this.renderVaults();
         this.renderUncategorized();
         this.updateSummary();
         this.updateMonthFilter();
         this.attachDragListeners();
+    }
+
+    renderIncome() {
+        const container = document.getElementById('incomeContainer');
+        const income = this.transactions.filter(t => t.vault === 'income' || (t.type === 'credit' && !t.vault));
+        
+        // Auto-assign credits to income
+        income.forEach(tx => {
+            if (tx.type === 'credit' && !tx.vault) {
+                tx.vault = 'income';
+            }
+        });
+        
+        const incomeInVault = this.transactions.filter(t => t.vault === 'income');
+        container.innerHTML = incomeInVault.map(tx => this.renderBubble(tx)).join('');
+        document.getElementById('incomeCount').textContent = incomeInVault.length;
+        
+        const total = incomeInVault.reduce((sum, t) => sum + t.amount, 0);
+        const header = container.closest('.income-section').querySelector('h2');
+        header.innerHTML = `💰 Income <span style="font-size: 14px; color: #22c55e; margin-left: 10px;">+$${total.toFixed(2)}</span>`;
     }
 
     renderVaults() {
@@ -475,7 +622,7 @@ class SpendingTracker {
 
     renderUncategorized() {
         const container = document.getElementById('uncategorized');
-        const uncategorized = this.transactions.filter(t => !t.vault);
+        const uncategorized = this.transactions.filter(t => !t.vault && t.type !== 'credit');
         
         container.innerHTML = uncategorized.map(tx => this.renderBubble(tx)).join('');
         document.getElementById('uncategorizedCount').textContent = uncategorized.length;
@@ -498,7 +645,7 @@ class SpendingTracker {
             bubble.addEventListener('dragend', (e) => this.handleDragEnd(e));
         });
         
-        document.querySelectorAll('.vault-bubbles, #uncategorized').forEach(zone => {
+        document.querySelectorAll('.vault-bubbles, #uncategorized, #incomeContainer').forEach(zone => {
             zone.addEventListener('dragover', (e) => this.handleDragOver(e));
             zone.addEventListener('dragleave', (e) => this.handleDragLeave(e));
             zone.addEventListener('drop', (e) => this.handleDrop(e));

@@ -82,10 +82,22 @@
             </div>
 
             <div class="main-layout">
-                <div class="uncategorized-section">
+                <!-- Income Section -->
+                <div class="income-section">
+                    <div class="section-header">
+                        <h2>💰 Income</h2>
+                        <span class="count" id="incomeCount">0</span>
+                    </div>
+                    <div class="bubble-container" id="incomeContainer" data-vault="income"></div>
+                </div>
+
+                <div class="uncategorized-section" id="uncategorizedSection">
                     <div class="section-header">
                         <h2>📥 Uncategorized</h2>
-                        <span class="count" id="uncategorizedCount">0</span>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <span class="count" id="uncategorizedCount">0</span>
+                            <button class="expand-btn" id="expandBtn">⬇️ Expand</button>
+                        </div>
                     </div>
                     <div class="bubble-container" id="uncategorized" data-vault="uncategorized"></div>
                 </div>
@@ -201,6 +213,13 @@
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-spinner"></div>
         <p>Loading your data...</p>
+    </div>
+
+    <!-- Context Menu -->
+    <div class="context-menu" id="contextMenu">
+        <div class="context-menu-item" id="ctxEdit">✏️ Edit Name</div>
+        <div class="context-menu-item" id="ctxMove">📤 Move to Income</div>
+        <div class="context-menu-item danger" id="ctxDelete">🗑️ Delete</div>
     </div>
 
     <!-- Firebase Config -->

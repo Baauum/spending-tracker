@@ -194,14 +194,58 @@ header h1 {
     background: var(--bg-secondary);
     border-radius: 12px;
     padding: 15px;
-    max-height: 50vh;
+    max-height: 300px;
     overflow-y: auto;
+    transition: max-height 0.3s ease;
+}
+
+.uncategorized-section.expanded {
+    max-height: calc(100vh - 200px);
 }
 
 @media (min-width: 900px) {
     .uncategorized-section {
-        max-height: calc(100vh - 300px);
+        max-height: 400px;
     }
+    .uncategorized-section.expanded {
+        max-height: calc(100vh - 250px);
+    }
+}
+
+.expand-btn {
+    background: var(--bg-tertiary);
+    border: none;
+    color: var(--text-secondary);
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.2s;
+}
+
+.expand-btn:hover {
+    background: var(--border);
+    color: var(--text-primary);
+}
+
+/* Income Section */
+.income-section {
+    background: linear-gradient(135deg, #064e3b 0%, #065f46 100%);
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.income-section .section-header h2 {
+    color: var(--success);
+}
+
+.income-section .bubble-container {
+    border-color: #10b981;
+}
+
+.income-section .bubble-container.drag-over {
+    background: rgba(16, 185, 129, 0.1);
 }
 
 .bubble-container {
@@ -277,6 +321,45 @@ header h1 {
 .bubble .date {
     color: var(--text-secondary);
     font-size: 10px;
+}
+
+/* Context Menu */
+.context-menu {
+    position: fixed;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 0;
+    min-width: 140px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    z-index: 1001;
+    display: none;
+}
+
+.context-menu.active {
+    display: block;
+}
+
+.context-menu-item {
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.context-menu-item:hover {
+    background: var(--bg-tertiary);
+}
+
+.context-menu-item.danger {
+    color: var(--danger);
+}
+
+.context-menu-item.danger:hover {
+    background: rgba(239, 68, 68, 0.1);
 }
 
 .bubble .source-badge {
