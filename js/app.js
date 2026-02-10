@@ -755,6 +755,19 @@ class SpendingTracker {
         const grid = document.getElementById('vaultsGrid');
         grid.innerHTML = '';
         
+        // Calculate total spending across all vaults
+        const allVaultTx = this.transactions.filter(t => t.vault && t.vault !== 'income');
+        const totalSpent = allVaultTx.filter(t => t.type === 'debit').reduce((sum, t) => sum + t.amount, 0);
+        const totalReceived = allVaultTx.filter(t => t.type === 'credit').reduce((sum, t) => sum + t.amount, 0);
+        const totalNet = totalSpent - totalReceived;
+        
+        // Update vaults header with total
+        const header = document.getElementById('vaultsHeader');
+        if (header) {
+            const netInfo = totalReceived > 0 ? ` <span style="font-size: 14px; color: #22c55e;">(Net: $${totalNet.toFixed(2)})</span>` : '';
+            header.innerHTML = `🏦 Vaults <span style="font-size: 16px; color: #ef4444; margin-left: 10px;">-$${totalSpent.toFixed(2)}</span>${netInfo}`;
+        }
+        
         for (const vault of this.vaults) {
             const vaultTx = this.transactions.filter(t => t.vault === vault.id);
             const debits = vaultTx.filter(t => t.type === 'debit').reduce((sum, t) => sum + t.amount, 0);
