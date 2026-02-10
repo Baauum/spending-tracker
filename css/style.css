@@ -567,6 +567,20 @@ header h1 {
 .vault-budget {
     font-size: 11px;
     color: var(--text-secondary);
+    transition: color 0.2s;
+}
+
+.vault-budget:hover {
+    color: var(--accent);
+}
+
+.vault-budget.set-budget {
+    color: var(--accent);
+    opacity: 0.7;
+}
+
+.vault-budget.set-budget:hover {
+    opacity: 1;
 }
 
 .vault-progress {

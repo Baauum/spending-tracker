@@ -798,14 +798,14 @@ class SpendingTracker {
                 </div>
                 ${creditDisplay}
                 ${vault.budget ? `
-                    <div class="vault-budget">
-                        Budget: $${vault.budget} 
+                    <div class="vault-budget" onclick="app.editBudget('${vault.id}')" style="cursor: pointer;" title="Click to edit budget">
+                        📊 Budget: $${vault.budget} 
                         ${overBudget ? `(⚠️ $${(total - vault.budget).toFixed(2)} over)` : `($${(vault.budget - total).toFixed(2)} left)`}
                     </div>
                     <div class="vault-progress">
                         <div class="vault-progress-fill" style="width: ${pct}%; background: ${color}"></div>
                     </div>
-                ` : ''}
+                ` : `<div class="vault-budget set-budget" onclick="app.editBudget('${vault.id}')" style="cursor: pointer;">+ Set Budget</div>`}
                 <div class="vault-bubbles" data-vault="${vault.id}">
                     ${vaultTx.map(tx => this.renderBubble(tx)).join('')}
                 </div>
@@ -1345,6 +1345,19 @@ class SpendingTracker {
         const newBudget = prompt('Monthly budget:', vault.budget || '');
         
         vault.name = newName || vault.name;
+        vault.budget = newBudget ? parseFloat(newBudget) : null;
+        
+        this.saveToStorage();
+        this.render();
+    }
+
+    editBudget(vaultId) {
+        const vault = this.vaults.find(v => v.id === vaultId);
+        if (!vault) return;
+        
+        const newBudget = prompt(`Set monthly budget for ${vault.name}:`, vault.budget || '');
+        if (newBudget === null) return;
+        
         vault.budget = newBudget ? parseFloat(newBudget) : null;
         
         this.saveToStorage();
