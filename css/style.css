@@ -157,15 +157,14 @@ header h1 {
 
 /* Main Layout */
 .main-layout {
-    display: grid;
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 20px;
 }
 
-@media (min-width: 900px) {
-    .main-layout {
-        grid-template-columns: 320px 1fr;
-    }
+/* Vaults Grid */
+.vaults-section {
+    width: 100%;
 }
 
 .section-header {
@@ -194,7 +193,7 @@ header h1 {
     background: var(--bg-secondary);
     border-radius: 12px;
     padding: 15px;
-    max-height: 300px;
+    max-height: 280px;
     overflow-y: auto;
     transition: max-height 0.3s ease;
 }
@@ -203,9 +202,9 @@ header h1 {
     max-height: calc(100vh - 200px);
 }
 
-@media (min-width: 900px) {
+@media (min-width: 768px) {
     .uncategorized-section {
-        max-height: 400px;
+        max-height: 320px;
     }
     .uncategorized-section.expanded {
         max-height: calc(100vh - 250px);
@@ -382,8 +381,20 @@ header h1 {
 /* Vaults Grid */
 .vaults-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 15px;
+}
+
+@media (min-width: 600px) {
+    .vaults-grid {
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    }
+}
+
+@media (min-width: 1200px) {
+    .vaults-grid {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    }
 }
 
 .vault {
