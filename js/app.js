@@ -652,15 +652,8 @@ class SpendingTracker {
 
     renderIncome() {
         const container = document.getElementById('incomeContainer');
-        const income = this.transactions.filter(t => t.vault === 'income' || (t.type === 'credit' && !t.vault));
         
-        // Auto-assign credits to income
-        income.forEach(tx => {
-            if (tx.type === 'credit' && !tx.vault) {
-                tx.vault = 'income';
-            }
-        });
-        
+        // Only show items explicitly in income vault (don't auto-assign)
         const incomeInVault = this.transactions.filter(t => t.vault === 'income');
         container.innerHTML = incomeInVault.map(tx => this.renderBubble(tx)).join('');
         document.getElementById('incomeCount').textContent = incomeInVault.length;
@@ -675,8 +668,10 @@ class SpendingTracker {
         grid.innerHTML = '';
         
         for (const vault of this.vaults) {
-            const vaultTx = this.transactions.filter(t => t.vault === vault.id && t.type === 'debit');
-            const total = vaultTx.reduce((sum, t) => sum + t.amount, 0);
+            const vaultTx = this.transactions.filter(t => t.vault === vault.id);
+            const debits = vaultTx.filter(t => t.type === 'debit').reduce((sum, t) => sum + t.amount, 0);
+            const credits = vaultTx.filter(t => t.type === 'credit').reduce((sum, t) => sum + t.amount, 0);
+            const total = debits - credits; // Net amount
             const pct = vault.budget ? Math.min((total / vault.budget) * 100, 100) : 0;
             const overBudget = vault.budget && total > vault.budget;
             const color = overBudget ? '#ef4444' : '#22c55e';
@@ -685,13 +680,17 @@ class SpendingTracker {
             vaultEl.className = 'vault draggable';
             vaultEl.draggable = true;
             vaultEl.dataset.vaultId = vault.id;
+            // Show breakdown if there are credits
+            const breakdown = credits > 0 ? 
+                `<span style="font-size: 11px; color: var(--text-secondary);">(-$${debits.toFixed(0)} +$${credits.toFixed(0)})</span>` : '';
+            
             vaultEl.innerHTML = `
                 <div class="vault-header">
                     <div class="vault-title">
                         <span class="vault-emoji">${vault.emoji}</span>
                         <span class="vault-name">${vault.name}</span>
                     </div>
-                    <div class="vault-total" style="color: ${color}">$${total.toFixed(2)}</div>
+                    <div class="vault-total" style="color: ${color}">$${total.toFixed(2)} ${breakdown}</div>
                 </div>
                 ${vault.budget ? `
                     <div class="vault-budget">
@@ -717,7 +716,8 @@ class SpendingTracker {
 
     renderUncategorized() {
         const container = document.getElementById('uncategorized');
-        const uncategorized = this.transactions.filter(t => !t.vault && t.type !== 'credit');
+        // Show all uncategorized items (both debits and credits)
+        const uncategorized = this.transactions.filter(t => !t.vault);
         
         container.innerHTML = uncategorized.map(tx => this.renderBubble(tx)).join('');
         document.getElementById('uncategorizedCount').textContent = uncategorized.length;
