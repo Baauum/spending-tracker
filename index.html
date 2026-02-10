@@ -86,7 +86,10 @@
                 <div class="income-section">
                     <div class="section-header">
                         <h2>💰 Income</h2>
-                        <span class="count" id="incomeCount">0</span>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <span class="count" id="incomeCount">0</span>
+                            <button class="add-tx-btn" id="addIncomeBtn">+ Add</button>
+                        </div>
                     </div>
                     <div class="bubble-container" id="incomeContainer" data-vault="income"></div>
                 </div>
@@ -96,6 +99,7 @@
                         <h2>📥 Uncategorized</h2>
                         <div style="display: flex; gap: 8px; align-items: center;">
                             <span class="count" id="uncategorizedCount">0</span>
+                            <button class="add-tx-btn" id="addExpenseBtn">+ Add</button>
                             <button class="expand-btn" id="expandBtn">⬇️ Expand</button>
                         </div>
                     </div>
@@ -220,6 +224,29 @@
         <div class="context-menu-item" id="ctxEdit">✏️ Edit Name</div>
         <div class="context-menu-item" id="ctxMove">📤 Move to Income</div>
         <div class="context-menu-item danger" id="ctxDelete">🗑️ Delete</div>
+    </div>
+
+    <!-- Add Transaction Modal -->
+    <div class="modal" id="addTxModal">
+        <div class="modal-content">
+            <h3 id="addTxTitle">➕ Add Transaction</h3>
+            <input type="text" id="addTxDesc" placeholder="Description (e.g., Rent from partner)">
+            <input type="number" id="addTxAmount" placeholder="Amount" step="0.01" min="0">
+            <input type="date" id="addTxDate">
+            <select id="addTxType">
+                <option value="credit">💰 Income (Credit)</option>
+                <option value="debit">💸 Expense (Debit)</option>
+            </select>
+            <select id="addTxSource">
+                <option value="manual">✏️ Manual Entry</option>
+                <option value="bank">🏦 Bank</option>
+                <option value="amex">💳 Amex</option>
+            </select>
+            <div class="modal-actions">
+                <button class="btn-secondary" id="cancelAddTx">Cancel</button>
+                <button class="btn-primary" id="saveAddTx">Add</button>
+            </div>
+        </div>
     </div>
 
     <!-- Transaction Detail Modal -->

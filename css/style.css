@@ -211,7 +211,7 @@ header h1 {
     }
 }
 
-.expand-btn {
+.expand-btn, .add-tx-btn {
     background: var(--bg-tertiary);
     border: none;
     color: var(--text-secondary);
@@ -222,9 +222,19 @@ header h1 {
     transition: all 0.2s;
 }
 
-.expand-btn:hover {
+.expand-btn:hover, .add-tx-btn:hover {
     background: var(--border);
     color: var(--text-primary);
+}
+
+.add-tx-btn {
+    background: var(--accent);
+    color: var(--bg-primary);
+}
+
+.add-tx-btn:hover {
+    background: var(--accent-hover);
+    color: var(--bg-primary);
 }
 
 /* Income Section */

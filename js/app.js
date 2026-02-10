@@ -175,6 +175,9 @@ class SpendingTracker {
         // Transaction detail modal
         this.initTxDetailModal();
         
+        // Add transaction modal
+        this.initAddTxModal();
+        
         // Search and filters
         document.getElementById('searchInput').addEventListener('input', (e) => {
             this.filters.search = e.target.value.toLowerCase();
@@ -413,6 +416,91 @@ class SpendingTracker {
         
         this.saveToStorage();
         document.getElementById('txDetailModal').classList.remove('active');
+    }
+
+    initAddTxModal() {
+        const modal = document.getElementById('addTxModal');
+        this.addTxTarget = null; // 'income' or 'uncategorized'
+        
+        // Add Income button
+        document.getElementById('addIncomeBtn').addEventListener('click', () => {
+            this.addTxTarget = 'income';
+            document.getElementById('addTxTitle').textContent = '💰 Add Income';
+            document.getElementById('addTxType').value = 'credit';
+            this.showAddTxModal();
+        });
+        
+        // Add Expense button
+        document.getElementById('addExpenseBtn').addEventListener('click', () => {
+            this.addTxTarget = 'uncategorized';
+            document.getElementById('addTxTitle').textContent = '💸 Add Expense';
+            document.getElementById('addTxType').value = 'debit';
+            this.showAddTxModal();
+        });
+        
+        // Cancel button
+        document.getElementById('cancelAddTx').addEventListener('click', () => {
+            modal.classList.remove('active');
+        });
+        
+        // Save button
+        document.getElementById('saveAddTx').addEventListener('click', () => {
+            this.saveNewTransaction();
+        });
+        
+        // Close on backdrop click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.classList.remove('active');
+        });
+    }
+
+    showAddTxModal() {
+        // Set default date to today
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('addTxDate').value = today;
+        document.getElementById('addTxDesc').value = '';
+        document.getElementById('addTxAmount').value = '';
+        document.getElementById('addTxSource').value = 'manual';
+        
+        document.getElementById('addTxModal').classList.add('active');
+        document.getElementById('addTxDesc').focus();
+    }
+
+    saveNewTransaction() {
+        const desc = document.getElementById('addTxDesc').value.trim();
+        const amount = parseFloat(document.getElementById('addTxAmount').value);
+        const date = document.getElementById('addTxDate').value;
+        const type = document.getElementById('addTxType').value;
+        const source = document.getElementById('addTxSource').value;
+        
+        if (!desc) {
+            alert('Please enter a description');
+            return;
+        }
+        if (!amount || amount <= 0) {
+            alert('Please enter a valid amount');
+            return;
+        }
+        if (!date) {
+            alert('Please select a date');
+            return;
+        }
+        
+        const tx = {
+            id: 'manual_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+            date: date,
+            description: desc,
+            amount: amount,
+            type: type,
+            source: source,
+            vault: this.addTxTarget === 'income' ? 'income' : null
+        };
+        
+        this.transactions.push(tx);
+        this.saveToStorage();
+        this.render();
+        
+        document.getElementById('addTxModal').classList.remove('active');
     }
 
     moveToIncome() {
