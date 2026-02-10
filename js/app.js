@@ -768,9 +768,12 @@ class SpendingTracker {
             vaultEl.className = 'vault draggable';
             vaultEl.draggable = true;
             vaultEl.dataset.vaultId = vault.id;
-            // Show breakdown if there are credits
-            const breakdown = credits > 0 ? 
-                `<span style="font-size: 11px; color: var(--text-secondary);">(-$${debits.toFixed(0)} +$${credits.toFixed(0)})</span>` : '';
+            // Show spent amount, and net if there are credits
+            const spentDisplay = `<span style="color: #ef4444">-$${debits.toFixed(2)}</span>`;
+            const netDisplay = credits > 0 ? 
+                `<span style="font-size: 12px; color: ${color}; margin-left: 8px;">Net: $${total.toFixed(2)}</span>` : '';
+            const creditDisplay = credits > 0 ?
+                `<span style="font-size: 11px; color: #22c55e; display: block;">+$${credits.toFixed(2)} received</span>` : '';
             
             vaultEl.innerHTML = `
                 <div class="vault-header">
@@ -778,8 +781,9 @@ class SpendingTracker {
                         <span class="vault-emoji">${vault.emoji}</span>
                         <span class="vault-name">${vault.name}</span>
                     </div>
-                    <div class="vault-total" style="color: ${color}">$${total.toFixed(2)} ${breakdown}</div>
+                    <div class="vault-total">${spentDisplay}${netDisplay}</div>
                 </div>
+                ${creditDisplay}
                 ${vault.budget ? `
                     <div class="vault-budget">
                         Budget: $${vault.budget} 
