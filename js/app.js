@@ -859,8 +859,12 @@ class SpendingTracker {
 
     renderSpendingProgress() {
         const filtered = this.getFilteredTransactions();
-        const spent = filtered.filter(t => t.type === 'debit' && t.vault && t.vault !== 'income')
-            .reduce((sum, t) => sum + t.amount, 0);
+        
+        // Calculate NET spending (debits - credits in vaults)
+        const vaultTx = filtered.filter(t => t.vault && t.vault !== 'income');
+        const debits = vaultTx.filter(t => t.type === 'debit').reduce((sum, t) => sum + t.amount, 0);
+        const credits = vaultTx.filter(t => t.type === 'credit').reduce((sum, t) => sum + t.amount, 0);
+        const netSpent = debits - credits;
         
         // Calculate total budget from all vaults
         const totalBudget = this.vaults.reduce((sum, v) => sum + (v.budget || 0), 0);
@@ -881,12 +885,12 @@ class SpendingTracker {
             totalDays = lastDay;
         }
         
-        const remaining = totalBudget - spent;
+        const remaining = totalBudget - netSpent;
         const dailyBudget = daysLeft > 0 ? remaining / daysLeft : 0;
-        const percentage = totalBudget > 0 ? Math.min((spent / totalBudget) * 100, 100) : 0;
+        const percentage = totalBudget > 0 ? Math.min((netSpent / totalBudget) * 100, 100) : 0;
         
         // Update DOM
-        document.getElementById('spendingAmount').textContent = `$${spent.toFixed(0)}`;
+        document.getElementById('spendingAmount').textContent = `$${netSpent.toFixed(0)}`;
         document.getElementById('spendingBudget').textContent = `$${totalBudget.toFixed(0)}`;
         
         const remainingEl = document.getElementById('spendingRemaining');
@@ -998,11 +1002,12 @@ class SpendingTracker {
         const totalReceived = allVaultTx.filter(t => t.type === 'credit').reduce((sum, t) => sum + t.amount, 0);
         const totalNet = totalSpent - totalReceived;
         
-        // Update vaults header with total
+        // Update vaults header with total (net only)
         const header = document.getElementById('vaultsHeader');
         if (header) {
-            const netInfo = totalReceived > 0 ? ` <span style="font-size: 14px; color: #22c55e;">(Net: $${totalNet.toFixed(2)})</span>` : '';
-            header.innerHTML = `🏦 Vaults <span style="font-size: 16px; color: #ef4444; margin-left: 10px;">-$${totalSpent.toFixed(2)}</span>${netInfo}`;
+            const netColor = totalNet >= 0 ? '#ef4444' : '#22c55e';
+            const netPrefix = totalNet >= 0 ? '-' : '+';
+            header.innerHTML = `🏦 Vaults <span style="font-size: 16px; color: ${netColor}; margin-left: 10px;">${netPrefix}$${Math.abs(totalNet).toFixed(2)}</span>`;
         }
         
         for (const vault of this.vaults) {
