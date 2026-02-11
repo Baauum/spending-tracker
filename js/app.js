@@ -1369,15 +1369,26 @@ class SpendingTracker {
         const ctx = document.getElementById('trendChart');
         if (!ctx) return;
         
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        // Get last 12 months dynamically
+        const now = new Date();
+        const last12Months = [];
+        const last12MonthKeys = [];
+        
+        for (let i = 11; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            const monthLabel = d.toLocaleString('default', { month: 'short' }) + ' ' + String(d.getFullYear()).slice(2);
+            last12Months.push(monthLabel);
+            last12MonthKeys.push(monthKey);
+        }
+        
         const topVaults = this.vaults.slice(0, 4);
         const colors = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b'];
         
         const datasets = topVaults.map((vault, idx) => {
-            const data = months.map((m, i) => {
-                const monthKey = `${year}-${String(i + 1).padStart(2, '0')}`;
+            const data = last12MonthKeys.map(monthKey => {
                 return this.transactions
-                    .filter(t => t.vault === vault.id && t.type === 'debit' && t.date.startsWith(monthKey))
+                    .filter(t => t.vault === vault.id && t.type === 'debit' && t.date && t.date.startsWith(monthKey))
                     .reduce((sum, t) => sum + t.amount, 0);
             });
             return {
@@ -1394,7 +1405,7 @@ class SpendingTracker {
         
         this.charts.trend = new Chart(ctx, {
             type: 'line',
-            data: { labels: months, datasets },
+            data: { labels: last12Months, datasets },
             options: {
                 responsive: true,
                 plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10 } } } },
