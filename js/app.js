@@ -348,6 +348,10 @@ class SpendingTracker {
             this.saveTxNotes();
         });
         
+        document.getElementById('deleteTxDetail').addEventListener('click', () => {
+            this.deleteFromDetail();
+        });
+        
         modal.addEventListener('click', (e) => {
             if (e.target === modal) modal.classList.remove('active');
         });
@@ -363,6 +367,16 @@ class SpendingTracker {
                 }
             }
         });
+    }
+
+    deleteFromDetail() {
+        if (!this.detailTx) return;
+        if (confirm(`Delete "${this.detailTx.description}"?`)) {
+            this.transactions = this.transactions.filter(t => t.id !== this.detailTx.id);
+            this.saveToStorage();
+            document.getElementById('txDetailModal').classList.remove('active');
+            this.render();
+        }
     }
 
     showTxDetail(tx) {

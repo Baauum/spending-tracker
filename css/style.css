@@ -1203,6 +1203,21 @@ header h1 {
     cursor: pointer;
 }
 
+.btn-danger {
+    background: var(--danger);
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
     width: 6px;
