@@ -619,7 +619,155 @@ class SpendingTracker {
             this.updateCharts();
         } else if (tabId === 'rules') {
             this.renderRules();
+        } else if (tabId === 'subscriptions') {
+            this.renderSubscriptions();
         }
+    }
+
+    renderSubscriptions() {
+        const list = document.getElementById('subscriptionsList');
+        if (!list) return;
+        
+        // Detect recurring transactions
+        const subscriptions = this.detectSubscriptions();
+        
+        if (subscriptions.length === 0) {
+            list.innerHTML = '<div class="no-data"><div class="no-data-icon">🔍</div>No recurring subscriptions detected yet.<br>Add more months of transactions to detect patterns.</div>';
+            document.getElementById('subscriptionsTotal').textContent = '$0';
+            return;
+        }
+        
+        // Calculate monthly total
+        const monthlyTotal = subscriptions.reduce((sum, s) => {
+            if (s.frequency === 'monthly') return sum + s.amount;
+            if (s.frequency === 'yearly') return sum + (s.amount / 12);
+            if (s.frequency === 'weekly') return sum + (s.amount * 4.33);
+            return sum + s.amount;
+        }, 0);
+        
+        document.getElementById('subscriptionsTotal').textContent = `$${monthlyTotal.toFixed(2)}/mo`;
+        
+        list.innerHTML = subscriptions.map(sub => {
+            const yearly = sub.frequency === 'monthly' ? sub.amount * 12 : 
+                          sub.frequency === 'yearly' ? sub.amount : sub.amount * 52;
+            const icon = this.getSubscriptionIcon(sub.name);
+            
+            return `
+                <div class="subscription-item">
+                    <div class="subscription-info">
+                        <span class="subscription-icon">${icon}</span>
+                        <div class="subscription-details">
+                            <span class="subscription-name">${sub.name}</span>
+                            <span class="subscription-frequency">${sub.frequency} • ${sub.count} charges</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="subscription-amount">$${sub.amount.toFixed(2)}</div>
+                        <div class="subscription-yearly">$${yearly.toFixed(0)}/yr</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    detectSubscriptions() {
+        // Group transactions by similar description and amount
+        const candidates = {};
+        
+        this.transactions.filter(t => t.type === 'debit').forEach(tx => {
+            // Clean and normalize description
+            const cleanDesc = this.cleanMerchantName(tx.description);
+            const key = `${cleanDesc}_${tx.amount.toFixed(2)}`;
+            
+            if (!candidates[key]) {
+                candidates[key] = {
+                    name: cleanDesc,
+                    amount: tx.amount,
+                    dates: [],
+                    count: 0
+                };
+            }
+            candidates[key].dates.push(new Date(tx.date));
+            candidates[key].count++;
+        });
+        
+        // Filter to only recurring (2+ occurrences with consistent timing)
+        const subscriptions = [];
+        
+        Object.values(candidates).forEach(c => {
+            if (c.count >= 2) {
+                // Sort dates
+                c.dates.sort((a, b) => a - b);
+                
+                // Calculate average days between charges
+                let totalDays = 0;
+                for (let i = 1; i < c.dates.length; i++) {
+                    totalDays += (c.dates[i] - c.dates[i-1]) / (1000 * 60 * 60 * 24);
+                }
+                const avgDays = totalDays / (c.dates.length - 1);
+                
+                // Determine frequency
+                let frequency;
+                if (avgDays >= 350 && avgDays <= 380) frequency = 'yearly';
+                else if (avgDays >= 25 && avgDays <= 35) frequency = 'monthly';
+                else if (avgDays >= 6 && avgDays <= 8) frequency = 'weekly';
+                else if (avgDays >= 13 && avgDays <= 16) frequency = 'bi-weekly';
+                else return; // Not a clear pattern
+                
+                subscriptions.push({
+                    name: c.name,
+                    amount: c.amount,
+                    frequency: frequency,
+                    count: c.count,
+                    lastCharge: c.dates[c.dates.length - 1]
+                });
+            }
+        });
+        
+        // Sort by amount descending
+        return subscriptions.sort((a, b) => b.amount - a.amount);
+    }
+
+    cleanMerchantName(desc) {
+        // Remove common bank junk from descriptions
+        let clean = desc
+            .replace(/\d{4,}/g, '') // Remove long numbers
+            .replace(/\b(SYDNEY|MELBOURNE|BRISBANE|PERTH|NSW|VIC|QLD|WA|SA|TAS|NT|ACT|AU|AUS)\b/gi, '')
+            .replace(/\b(VISA|MASTERCARD|EFTPOS|DIRECT DEBIT|PURCHASE|CARD)\b/gi, '')
+            .replace(/\b(PTY|LTD|LIMITED|INC|CORP)\b/gi, '')
+            .replace(/\s{2,}/g, ' ')
+            .replace(/[*#]+/g, '')
+            .trim();
+        
+        // Capitalize properly
+        clean = clean.split(' ')
+            .filter(w => w.length > 0)
+            .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+            .join(' ');
+        
+        return clean || desc;
+    }
+
+    getSubscriptionIcon(name) {
+        const n = name.toLowerCase();
+        if (n.includes('netflix')) return '🎬';
+        if (n.includes('spotify')) return '🎵';
+        if (n.includes('youtube')) return '📺';
+        if (n.includes('disney')) return '🏰';
+        if (n.includes('amazon') || n.includes('prime')) return '📦';
+        if (n.includes('apple')) return '🍎';
+        if (n.includes('google')) return '🔍';
+        if (n.includes('microsoft') || n.includes('xbox')) return '💻';
+        if (n.includes('gym') || n.includes('fitness')) return '💪';
+        if (n.includes('insurance')) return '🛡️';
+        if (n.includes('phone') || n.includes('mobile') || n.includes('telstra') || n.includes('optus')) return '📱';
+        if (n.includes('internet') || n.includes('nbn')) return '🌐';
+        if (n.includes('electricity') || n.includes('energy')) return '⚡';
+        if (n.includes('water')) return '💧';
+        if (n.includes('rent') || n.includes('property')) return '🏠';
+        if (n.includes('uber')) return '🚗';
+        if (n.includes('doordash') || n.includes('menulog') || n.includes('deliveroo')) return '🍔';
+        return '🔄';
     }
 
     async handleFileUpload(event) {
@@ -701,11 +849,68 @@ class SpendingTracker {
 
     render() {
         this.renderMonthTabs();
+        this.renderSpendingProgress();
         this.renderIncome();
         this.renderVaults();
         this.renderUncategorized();
         this.updateSummary();
         this.attachDragListeners();
+    }
+
+    renderSpendingProgress() {
+        const filtered = this.getFilteredTransactions();
+        const spent = filtered.filter(t => t.type === 'debit' && t.vault && t.vault !== 'income')
+            .reduce((sum, t) => sum + t.amount, 0);
+        
+        // Calculate total budget from all vaults
+        const totalBudget = this.vaults.reduce((sum, v) => sum + (v.budget || 0), 0);
+        
+        // Calculate days left in month
+        const now = new Date();
+        let daysLeft, totalDays;
+        if (this.selectedMonth && this.selectedMonth !== 'all') {
+            const [year, month] = this.selectedMonth.split('-').map(Number);
+            const lastDay = new Date(year, month, 0).getDate();
+            const currentDay = (year === now.getFullYear() && month === now.getMonth() + 1) 
+                ? now.getDate() : lastDay;
+            daysLeft = Math.max(0, lastDay - currentDay);
+            totalDays = lastDay;
+        } else {
+            const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+            daysLeft = lastDay - now.getDate();
+            totalDays = lastDay;
+        }
+        
+        const remaining = totalBudget - spent;
+        const dailyBudget = daysLeft > 0 ? remaining / daysLeft : 0;
+        const percentage = totalBudget > 0 ? Math.min((spent / totalBudget) * 100, 100) : 0;
+        
+        // Update DOM
+        document.getElementById('spendingAmount').textContent = `$${spent.toFixed(0)}`;
+        document.getElementById('spendingBudget').textContent = `$${totalBudget.toFixed(0)}`;
+        
+        const remainingEl = document.getElementById('spendingRemaining');
+        if (remaining >= 0) {
+            remainingEl.textContent = `$${remaining.toFixed(0)} left`;
+            remainingEl.classList.remove('over');
+        } else {
+            remainingEl.textContent = `$${Math.abs(remaining).toFixed(0)} over`;
+            remainingEl.classList.add('over');
+        }
+        
+        document.getElementById('spendingDaysLeft').textContent = `${daysLeft} days left in month`;
+        document.getElementById('spendingDailyBudget').textContent = remaining > 0 
+            ? `$${dailyBudget.toFixed(0)}/day remaining` 
+            : 'Over budget!';
+        
+        const progressFill = document.getElementById('spendingProgressFill');
+        progressFill.style.width = `${percentage}%`;
+        progressFill.classList.remove('warning', 'over');
+        if (percentage > 100) {
+            progressFill.classList.add('over');
+        } else if (percentage > 80) {
+            progressFill.classList.add('warning');
+        }
     }
 
     getFilteredTransactions() {
@@ -1296,10 +1501,20 @@ class SpendingTracker {
     }
 
     learnFromCategorized() {
+        const merchantCounts = {};
         const wordCounts = {};
         
-        // Count keywords per vault
-        this.transactions.filter(t => t.vault).forEach(tx => {
+        // Count by cleaned merchant name AND by words
+        this.transactions.filter(t => t.vault && t.vault !== 'income').forEach(tx => {
+            // Learn full merchant names
+            const merchant = this.cleanMerchantName(tx.description);
+            const merchantKey = merchant.toLowerCase();
+            if (!merchantCounts[merchantKey]) {
+                merchantCounts[merchantKey] = { name: merchant, vaults: {} };
+            }
+            merchantCounts[merchantKey].vaults[tx.vault] = (merchantCounts[merchantKey].vaults[tx.vault] || 0) + 1;
+            
+            // Also learn individual words (for partial matches)
             const words = tx.description.split(/\s+/).filter(w => w.length > 3);
             words.forEach(word => {
                 const key = word.toLowerCase();
@@ -1310,17 +1525,41 @@ class SpendingTracker {
             });
         });
         
-        // Find strong associations
         let newRules = 0;
+        
+        // Learn from merchant names (higher priority - need only 1 occurrence)
+        Object.entries(merchantCounts).forEach(([key, data]) => {
+            const total = Object.values(data.vaults).reduce((a, b) => a + b, 0);
+            const entries = Object.entries(data.vaults).sort((a, b) => b[1] - a[1]);
+            if (entries.length === 0) return;
+            
+            const [topVault, topCount] = entries[0];
+            
+            // If consistent categorization (100% to one vault, or 80%+ with 2+ occurrences)
+            if ((total === 1) || (topCount >= 2 && topCount / total >= 0.8)) {
+                const exists = this.rules.find(r => r.keyword.toLowerCase() === key);
+                if (!exists && data.name.length > 2) {
+                    this.rules.push({ 
+                        keyword: data.name, 
+                        vaultId: topVault, 
+                        caseSensitive: false,
+                        learned: true
+                    });
+                    newRules++;
+                }
+            }
+        });
+        
+        // Learn from words (need stronger signal)
         Object.entries(wordCounts).forEach(([word, vaultCounts]) => {
             const total = Object.values(vaultCounts).reduce((a, b) => a + b, 0);
             const [topVault, topCount] = Object.entries(vaultCounts).sort((a, b) => b[1] - a[1])[0];
             
-            // If 80%+ of occurrences are in one vault, and at least 2 occurrences
-            if (topCount >= 2 && topCount / total >= 0.8) {
+            // Need 80%+ and at least 3 occurrences for word-based rules
+            if (topCount >= 3 && topCount / total >= 0.8) {
                 const exists = this.rules.find(r => r.keyword.toLowerCase() === word);
                 if (!exists) {
-                    this.rules.push({ keyword: word, vaultId: topVault, caseSensitive: false });
+                    this.rules.push({ keyword: word, vaultId: topVault, caseSensitive: false, learned: true });
                     newRules++;
                 }
             }
@@ -1329,7 +1568,7 @@ class SpendingTracker {
         if (newRules > 0) {
             this.saveToStorage();
             this.renderRules();
-            alert(`Learned ${newRules} new rules from your categorizations`);
+            alert(`🧠 Learned ${newRules} new rules from your categorizations!`);
         } else {
             alert('No new patterns found. Categorize more transactions first.');
         }

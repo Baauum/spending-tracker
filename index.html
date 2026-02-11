@@ -51,6 +51,7 @@
             <button class="tab-btn active" data-tab="categorize">🫧 Categorize</button>
             <button class="tab-btn" data-tab="charts">📊 Charts</button>
             <button class="tab-btn" data-tab="rules">🔄 Auto-Rules</button>
+            <button class="tab-btn" data-tab="subscriptions">🔁 Subscriptions</button>
         </div>
 
         <!-- Categorize Tab -->
@@ -66,6 +67,26 @@
             <!-- Month Tabs -->
             <div class="month-tabs" id="monthTabs">
                 <!-- Populated by JS -->
+            </div>
+
+            <!-- Spending Progress Bar -->
+            <div class="spending-progress-card" id="spendingProgressCard">
+                <div class="spending-progress-header">
+                    <div class="spending-progress-text">
+                        <span class="spending-amount" id="spendingAmount">$0</span>
+                        <span class="spending-label">spent of</span>
+                        <span class="spending-budget" id="spendingBudget">$0</span>
+                        <span class="spending-label">budget</span>
+                    </div>
+                    <div class="spending-remaining" id="spendingRemaining">$0 left</div>
+                </div>
+                <div class="spending-progress-bar">
+                    <div class="spending-progress-fill" id="spendingProgressFill"></div>
+                </div>
+                <div class="spending-progress-footer">
+                    <span id="spendingDaysLeft">0 days left</span>
+                    <span id="spendingDailyBudget">$0/day remaining</span>
+                </div>
             </div>
 
             <!-- Search & Filter Bar -->
@@ -159,6 +180,21 @@
                     <button class="action-btn" id="applyRulesBtn">⚡ Apply Rules to All</button>
                     <button class="action-btn" id="learnRulesBtn">🧠 Learn from Categorized</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Subscriptions Tab -->
+        <div class="tab-content" id="tab-subscriptions">
+            <div class="subscriptions-container">
+                <div class="subscriptions-header">
+                    <h3>🔁 Detected Subscriptions</h3>
+                    <p>Recurring charges detected from your transactions</p>
+                    <div class="subscriptions-total">
+                        <span>Monthly total:</span>
+                        <span class="subscriptions-amount" id="subscriptionsTotal">$0</span>
+                    </div>
+                </div>
+                <div class="subscriptions-list" id="subscriptionsList"></div>
             </div>
         </div>
 
