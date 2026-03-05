@@ -1283,10 +1283,17 @@ class SpendingTracker {
             vaultEl.className = 'vault draggable';
             vaultEl.draggable = true;
             vaultEl.dataset.vaultId = vault.id;
-            // Show just the net value
+            
+            // NET display with breakdown
             const netColor = total >= 0 ? '#ef4444' : '#22c55e';
             const netPrefix = total >= 0 ? '-' : '+';
             const netValue = Math.abs(total);
+            
+            // Show breakdown if there are credits
+            const breakdownHTML = credits > 0 ? 
+                `<div class="vault-breakdown" style="font-size: 11px; color: #64748b; margin-top: 4px;">
+                    Out: $${debits.toFixed(2)} | In: <span style="color: #22c55e;">+$${credits.toFixed(2)}</span>
+                </div>` : '';
             
             vaultEl.innerHTML = `
                 <div class="vault-header">
@@ -1294,7 +1301,10 @@ class SpendingTracker {
                         <span class="vault-emoji">${vault.emoji}</span>
                         <span class="vault-name">${vault.name}</span>
                     </div>
-                    <div class="vault-total" style="color: ${netColor}">${netPrefix}$${netValue.toFixed(2)}</div>
+                    <div>
+                        <div class="vault-total" style="color: ${netColor}; font-weight: bold;">${netPrefix}$${netValue.toFixed(2)} <span style="font-size: 10px; font-weight: normal; color: #94a3b8;">NET</span></div>
+                        ${breakdownHTML}
+                    </div>
                 </div>
                 ${vault.budget ? `
                     <div class="vault-budget" onclick="app.editBudget('${vault.id}')" style="cursor: pointer;" title="Click to edit budget">
@@ -1535,17 +1545,36 @@ class SpendingTracker {
         const ctx = document.getElementById('monthlyChart');
         if (!ctx) return;
         
-        const monthlyData = {};
         const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        
+        // Calculate NET spending per month (debits - credits, excluding income vault)
+        const monthlyData = {};
+        const incomeData = {};
         
         months.forEach((m, i) => {
             const monthKey = `${year}-${String(i + 1).padStart(2, '0')}`;
-            monthlyData[monthKey] = 0;
+            monthlyData[monthKey] = { debits: 0, credits: 0, net: 0 };
+            incomeData[monthKey] = 0;
         });
         
-        this.transactions.filter(t => t.type === 'debit' && t.date.startsWith(year)).forEach(tx => {
+        this.transactions.filter(t => t.date.startsWith(year)).forEach(tx => {
             const monthKey = tx.date.substring(0, 7);
-            monthlyData[monthKey] = (monthlyData[monthKey] || 0) + tx.amount;
+            if (!monthlyData[monthKey]) return;
+            
+            if (tx.vault === 'income') {
+                incomeData[monthKey] += tx.amount;
+            } else {
+                if (tx.type === 'debit') {
+                    monthlyData[monthKey].debits += tx.amount;
+                } else {
+                    monthlyData[monthKey].credits += tx.amount;
+                }
+            }
+        });
+        
+        // Calculate NET for each month
+        Object.keys(monthlyData).forEach(key => {
+            monthlyData[key].net = monthlyData[key].debits - monthlyData[key].credits;
         });
         
         if (this.charts.monthly) this.charts.monthly.destroy();
@@ -1554,16 +1583,36 @@ class SpendingTracker {
             type: 'bar',
             data: {
                 labels: months,
-                datasets: [{
-                    label: 'Monthly Spending',
-                    data: Object.values(monthlyData),
-                    backgroundColor: '#38bdf8',
-                    borderRadius: 6
-                }]
+                datasets: [
+                    {
+                        label: 'Income',
+                        data: Object.values(incomeData),
+                        backgroundColor: '#22c55e',
+                        borderRadius: 6
+                    },
+                    {
+                        label: 'NET Spending',
+                        data: Object.values(monthlyData).map(d => d.net),
+                        backgroundColor: '#ef4444',
+                        borderRadius: 6
+                    }
+                ]
             },
             options: {
                 responsive: true,
-                plugins: { legend: { display: false } },
+                plugins: { 
+                    legend: { labels: { color: '#94a3b8' } },
+                    tooltip: {
+                        callbacks: {
+                            footer: function(items) {
+                                const monthIdx = items[0].dataIndex;
+                                const monthKey = `${year}-${String(monthIdx + 1).padStart(2, '0')}`;
+                                const data = monthlyData[monthKey];
+                                return `Out: $${data.debits.toFixed(2)}\nIn: +$${data.credits.toFixed(2)}`;
+                            }
+                        }
+                    }
+                },
                 scales: {
                     y: { 
                         grid: { color: '#334155' }, 
@@ -1579,15 +1628,28 @@ class SpendingTracker {
         const ctx = document.getElementById('categoryChart');
         if (!ctx) return;
         
+        // Calculate NET spending per category (debits - credits)
         const categoryData = {};
-        this.transactions.filter(t => t.type === 'debit' && t.vault).forEach(tx => {
+        this.transactions.filter(t => t.vault && t.vault !== 'income').forEach(tx => {
             const vault = this.vaults.find(v => v.id === tx.vault);
             if (vault) {
-                categoryData[vault.name] = (categoryData[vault.name] || 0) + tx.amount;
+                if (!categoryData[vault.name]) {
+                    categoryData[vault.name] = { debits: 0, credits: 0, net: 0 };
+                }
+                if (tx.type === 'debit') {
+                    categoryData[vault.name].debits += tx.amount;
+                } else {
+                    categoryData[vault.name].credits += tx.amount;
+                }
+                categoryData[vault.name].net = categoryData[vault.name].debits - categoryData[vault.name].credits;
             }
         });
         
-        const sorted = Object.entries(categoryData).sort((a, b) => b[1] - a[1]);
+        // Only show categories with positive NET spending
+        const sorted = Object.entries(categoryData)
+            .filter(([_, data]) => data.net > 0)
+            .sort((a, b) => b[1].net - a[1].net);
+        
         const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899', '#6366f1', '#64748b'];
         
         if (this.charts.category) this.charts.category.destroy();
@@ -1597,7 +1659,7 @@ class SpendingTracker {
             data: {
                 labels: sorted.map(c => c[0]),
                 datasets: [{
-                    data: sorted.map(c => c[1]),
+                    data: sorted.map(c => c[1].net),
                     backgroundColor: colors,
                     borderWidth: 0
                 }]
@@ -1605,7 +1667,20 @@ class SpendingTracker {
             options: {
                 responsive: true,
                 plugins: {
-                    legend: { position: 'right', labels: { color: '#94a3b8', padding: 8, font: { size: 11 } } }
+                    legend: { position: 'right', labels: { color: '#94a3b8', padding: 8, font: { size: 11 } } },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const cat = sorted[context.dataIndex];
+                                const data = cat[1];
+                                return [
+                                    `${cat[0]}: $${data.net.toFixed(2)} NET`,
+                                    `Out: $${data.debits.toFixed(2)}`,
+                                    `In: +$${data.credits.toFixed(2)}`
+                                ];
+                            }
+                        }
+                    }
                 }
             }
         });
@@ -1633,12 +1708,16 @@ class SpendingTracker {
         
         const datasets = topVaults.map((vault, idx) => {
             const data = last12MonthKeys.map(monthKey => {
-                return this.transactions
+                const debits = this.transactions
                     .filter(t => t.vault === vault.id && t.type === 'debit' && t.date && t.date.startsWith(monthKey))
                     .reduce((sum, t) => sum + t.amount, 0);
+                const credits = this.transactions
+                    .filter(t => t.vault === vault.id && t.type === 'credit' && t.date && t.date.startsWith(monthKey))
+                    .reduce((sum, t) => sum + t.amount, 0);
+                return debits - credits; // NET spending
             });
             return {
-                label: vault.emoji + ' ' + vault.name,
+                label: vault.emoji + ' ' + vault.name + ' (NET)',
                 data,
                 borderColor: colors[idx],
                 backgroundColor: colors[idx] + '20',
@@ -1654,9 +1733,27 @@ class SpendingTracker {
             data: { labels: last12Months, datasets },
             options: {
                 responsive: true,
-                plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10 } } } },
+                plugins: { 
+                    legend: { labels: { color: '#94a3b8', font: { size: 10 } } },
+                    tooltip: {
+                        callbacks: {
+                            title: function(items) {
+                                return items[0].label + ' - NET Spending';
+                            },
+                            footer: function() {
+                                return 'NET = Money Out - Money In';
+                            }
+                        }
+                    }
+                },
                 scales: {
-                    y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                    y: { 
+                        grid: { color: '#334155' }, 
+                        ticks: { 
+                            color: '#94a3b8',
+                            callback: v => '$' + v
+                        }
+                    },
                     x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
                 }
             }
@@ -1667,30 +1764,41 @@ class SpendingTracker {
         const container = document.getElementById('topCategories');
         if (!container) return;
         
+        // Calculate NET spending per category
         const categoryData = {};
-        this.transactions.filter(t => t.type === 'debit' && t.vault).forEach(tx => {
+        this.transactions.filter(t => t.vault && t.vault !== 'income').forEach(tx => {
             const vault = this.vaults.find(v => v.id === tx.vault);
             if (vault) {
                 if (!categoryData[vault.id]) {
-                    categoryData[vault.id] = { name: vault.name, emoji: vault.emoji, total: 0 };
+                    categoryData[vault.id] = { name: vault.name, emoji: vault.emoji, debits: 0, credits: 0, net: 0 };
                 }
-                categoryData[vault.id].total += tx.amount;
+                if (tx.type === 'debit') {
+                    categoryData[vault.id].debits += tx.amount;
+                } else {
+                    categoryData[vault.id].credits += tx.amount;
+                }
+                categoryData[vault.id].net = categoryData[vault.id].debits - categoryData[vault.id].credits;
             }
         });
         
-        const sorted = Object.values(categoryData).sort((a, b) => b.total - a.total).slice(0, 5);
-        const max = sorted[0]?.total || 1;
+        // Sort by NET spending and take top 5
+        const sorted = Object.values(categoryData)
+            .filter(cat => cat.net > 0)
+            .sort((a, b) => b.net - a.net)
+            .slice(0, 5);
+        const max = sorted[0]?.net || 1;
         const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6'];
         
         container.innerHTML = sorted.map((cat, i) => {
-            const pct = (cat.total / max) * 100;
+            const pct = (cat.net / max) * 100;
+            const tooltip = cat.credits > 0 ? `Out: $${cat.debits.toFixed(0)} | In: +$${cat.credits.toFixed(0)}` : '';
             return `
-                <div class="top-category-item">
+                <div class="top-category-item" title="${tooltip}">
                     <span style="font-size: 20px">${cat.emoji}</span>
                     <div class="top-category-bar">
                         <div class="top-category-fill" style="width: ${pct}%; background: ${colors[i]}">${cat.name}</div>
                     </div>
-                    <span class="top-category-amount">$${cat.total.toFixed(0)}</span>
+                    <span class="top-category-amount">$${cat.net.toFixed(0)} <span style="font-size: 9px; color: #94a3b8;">NET</span></span>
                 </div>
             `;
         }).join('');
