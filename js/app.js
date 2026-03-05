@@ -1703,8 +1703,28 @@ class SpendingTracker {
             last12MonthKeys.push(monthKey);
         }
         
-        const topVaults = this.vaults.slice(0, 4);
-        const colors = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b'];
+        // Calculate total NET spending per vault across all 12 months
+        const vaultTotals = this.vaults.map(vault => {
+            const total = last12MonthKeys.reduce((sum, monthKey) => {
+                const debits = this.transactions
+                    .filter(t => t.vault === vault.id && t.type === 'debit' && t.date && t.date.startsWith(monthKey))
+                    .reduce((s, t) => s + t.amount, 0);
+                const credits = this.transactions
+                    .filter(t => t.vault === vault.id && t.type === 'credit' && t.date && t.date.startsWith(monthKey))
+                    .reduce((s, t) => s + t.amount, 0);
+                return sum + (debits - credits);
+            }, 0);
+            return { vault, total };
+        });
+        
+        // Get top 8 vaults by NET spending (or all if less than 8)
+        const topVaults = vaultTotals
+            .filter(v => v.total > 0) // Only show vaults with actual spending
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 8)
+            .map(v => v.vault);
+        
+        const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899'];
         
         const datasets = topVaults.map((vault, idx) => {
             const data = last12MonthKeys.map(monthKey => {
@@ -1717,10 +1737,10 @@ class SpendingTracker {
                 return debits - credits; // NET spending
             });
             return {
-                label: vault.emoji + ' ' + vault.name + ' (NET)',
+                label: vault.emoji + ' ' + vault.name,
                 data,
-                borderColor: colors[idx],
-                backgroundColor: colors[idx] + '20',
+                borderColor: colors[idx % colors.length],
+                backgroundColor: colors[idx % colors.length] + '20',
                 tension: 0.3,
                 fill: true
             };
@@ -1734,11 +1754,17 @@ class SpendingTracker {
             options: {
                 responsive: true,
                 plugins: { 
-                    legend: { labels: { color: '#94a3b8', font: { size: 10 } } },
+                    legend: { 
+                        labels: { color: '#94a3b8', font: { size: 9 } },
+                        position: 'top'
+                    },
                     tooltip: {
                         callbacks: {
                             title: function(items) {
                                 return items[0].label + ' - NET Spending';
+                            },
+                            label: function(context) {
+                                return context.dataset.label + ': $' + context.parsed.y.toFixed(2);
                             },
                             footer: function() {
                                 return 'NET = Money Out - Money In';
@@ -1754,7 +1780,7 @@ class SpendingTracker {
                             callback: v => '$' + v
                         }
                     },
-                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } }
                 }
             }
         });
