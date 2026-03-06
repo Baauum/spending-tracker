@@ -16,7 +16,7 @@ class SpendingTracker {
         this.selectedMonth = null; // null = current month, 'all' = all months
         this.auth = null;
         this.saveTimeout = null;
-        this.averageLinesVisible = true; // Default: show average lines
+        this.trendLinesVisible = true; // Default: show trend lines
         
         this.initAuth();
     }
@@ -306,14 +306,19 @@ class SpendingTracker {
         // Category trend chart controls
         document.getElementById('selectAllCategories').addEventListener('click', () => this.toggleAllCategories(true));
         document.getElementById('unselectAllCategories').addEventListener('click', () => this.toggleAllCategories(false));
-        document.getElementById('toggleAverageLines').addEventListener('click', () => {
-            // Toggle between showing and hiding average lines
-            if (!this.averageLinesVisible) {
-                this.toggleAverageLines(true);
-                this.averageLinesVisible = true;
+        document.getElementById('toggleTrendLines').addEventListener('click', (e) => {
+            // Toggle between showing and hiding trend lines
+            this.trendLinesVisible = !this.trendLinesVisible;
+            this.toggleAverageLines(this.trendLinesVisible);
+            
+            // Update button text and style
+            const btn = e.target;
+            if (this.trendLinesVisible) {
+                btn.textContent = '📈 EMA Trends: ON';
+                btn.classList.add('active');
             } else {
-                this.toggleAverageLines(false);
-                this.averageLinesVisible = false;
+                btn.textContent = '📉 EMA Trends: OFF';
+                btn.classList.remove('active');
             }
         });
         
@@ -1791,8 +1796,31 @@ class SpendingTracker {
                 responsive: true,
                 plugins: { 
                     legend: { 
-                        labels: { color: '#94a3b8', font: { size: 9 } },
-                        position: 'top'
+                        labels: { 
+                            color: '#94a3b8', 
+                            font: { size: 9 },
+                            filter: function(item, chart) {
+                                // Only show actual spending lines in legend (hide trend lines)
+                                return !item.text.includes('(trend)');
+                            }
+                        },
+                        position: 'top',
+                        onClick: (e, legendItem, legend) => {
+                            const index = legendItem.datasetIndex;
+                            const chart = legend.chart;
+                            
+                            // Toggle the actual line
+                            const actualMeta = chart.getDatasetMeta(index);
+                            actualMeta.hidden = !actualMeta.hidden;
+                            
+                            // Also toggle its corresponding trend line (next dataset)
+                            const trendMeta = chart.getDatasetMeta(index + 1);
+                            if (trendMeta && chart.data.datasets[index + 1].label.includes('(trend)')) {
+                                trendMeta.hidden = actualMeta.hidden;
+                            }
+                            
+                            chart.update();
+                        }
                     },
                     tooltip: {
                         callbacks: {
@@ -1800,7 +1828,9 @@ class SpendingTracker {
                                 return items[0].label + ' - NET Spending';
                             },
                             label: function(context) {
-                                return context.dataset.label + ': $' + context.parsed.y.toFixed(2);
+                                const label = context.dataset.label.replace(' (trend)', '');
+                                const suffix = context.dataset.label.includes('(trend)') ? ' (trend)' : '';
+                                return label + suffix + ': $' + context.parsed.y.toFixed(2);
                             },
                             footer: function() {
                                 return 'NET = Money Out - Money In';

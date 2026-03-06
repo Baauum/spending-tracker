@@ -1435,3 +1435,10 @@ header h1 {
     border-color: var(--accent);
     transform: translateY(-1px);
 }
+
+.chart-control-btn.active {
+    background: var(--success);
+    border-color: var(--success);
+    color: white;
+    font-weight: 600;
+}
