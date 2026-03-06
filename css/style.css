@@ -1442,3 +1442,34 @@ header h1 {
     color: white;
     font-weight: 600;
 }
+
+.chart-date-range {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+}
+
+.chart-date-range label {
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.date-range-input {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.date-range-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}

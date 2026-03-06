@@ -17,6 +17,7 @@ class SpendingTracker {
         this.auth = null;
         this.saveTimeout = null;
         this.trendLinesVisible = true; // Default: show trend lines
+        this.trendDateRange = null; // { start: 'YYYY-MM', end: 'YYYY-MM' } or null for all
         
         this.initAuth();
     }
@@ -321,6 +322,10 @@ class SpendingTracker {
                 btn.classList.remove('active');
             }
         });
+        
+        // Date range controls
+        document.getElementById('applyDateRange').addEventListener('click', () => this.applyTrendDateRange());
+        document.getElementById('resetDateRange').addEventListener('click', () => this.resetTrendDateRange());
         
         // Keyboard
         document.addEventListener('keydown', (e) => {
@@ -1710,17 +1715,41 @@ class SpendingTracker {
         const ctx = document.getElementById('trendChart');
         if (!ctx) return;
         
-        // Get last 12 months dynamically
-        const now = new Date();
-        const last12Months = [];
-        const last12MonthKeys = [];
+        // Get month range (either custom range or last 12 months)
+        let last12Months = [];
+        let last12MonthKeys = [];
         
-        for (let i = 11; i >= 0; i--) {
-            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            const monthLabel = d.toLocaleString('default', { month: 'short' }) + ' ' + String(d.getFullYear()).slice(2);
-            last12Months.push(monthLabel);
-            last12MonthKeys.push(monthKey);
+        if (this.trendDateRange) {
+            // Custom date range
+            const start = new Date(this.trendDateRange.start + '-01');
+            const end = new Date(this.trendDateRange.end + '-01');
+            
+            let current = new Date(start);
+            while (current <= end) {
+                const monthKey = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
+                const monthLabel = current.toLocaleString('default', { month: 'short' }) + ' ' + String(current.getFullYear()).slice(2);
+                last12Months.push(monthLabel);
+                last12MonthKeys.push(monthKey);
+                current.setMonth(current.getMonth() + 1);
+            }
+        } else {
+            // Default: last 12 months
+            const now = new Date();
+            for (let i = 11; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                const monthLabel = d.toLocaleString('default', { month: 'short' }) + ' ' + String(d.getFullYear()).slice(2);
+                last12Months.push(monthLabel);
+                last12MonthKeys.push(monthKey);
+            }
+        }
+        
+        // Set default values for date inputs
+        if (!this.trendDateRange) {
+            const now = new Date();
+            const startMonth = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+            document.getElementById('trendStartMonth').value = `${startMonth.getFullYear()}-${String(startMonth.getMonth() + 1).padStart(2, '0')}`;
+            document.getElementById('trendEndMonth').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         }
         
         // Calculate total NET spending per vault across all 12 months
@@ -2173,9 +2202,38 @@ class SpendingTracker {
         const chart = this.charts.trend;
         chart.data.datasets.forEach((dataset, index) => {
             const meta = chart.getDatasetMeta(index);
-            meta.hidden = !show;
+            
+            // For trend lines, respect the trendLinesVisible setting
+            if (dataset.label.includes('(trend)')) {
+                meta.hidden = !show || !this.trendLinesVisible;
+            } else {
+                meta.hidden = !show;
+            }
         });
         chart.update();
+    }
+    
+    applyTrendDateRange() {
+        const start = document.getElementById('trendStartMonth').value;
+        const end = document.getElementById('trendEndMonth').value;
+        
+        if (!start || !end) {
+            alert('Please select both start and end months');
+            return;
+        }
+        
+        if (start > end) {
+            alert('Start month must be before end month');
+            return;
+        }
+        
+        this.trendDateRange = { start, end };
+        this.updateCharts();
+    }
+    
+    resetTrendDateRange() {
+        this.trendDateRange = null;
+        this.updateCharts();
     }
     
     calculateEMA(data, period) {
@@ -2206,7 +2264,16 @@ class SpendingTracker {
             // Only toggle trend lines (those with "(trend)" in label)
             if (dataset.label.includes('(trend)')) {
                 const meta = chart.getDatasetMeta(index);
-                meta.hidden = !show;
+                
+                // Only show trend if its corresponding actual line is visible
+                if (show) {
+                    // Find the corresponding actual line (index - 1)
+                    const actualMeta = chart.getDatasetMeta(index - 1);
+                    // Only show trend if actual line is visible
+                    meta.hidden = actualMeta.hidden;
+                } else {
+                    meta.hidden = true;
+                }
             }
         });
         chart.update();
