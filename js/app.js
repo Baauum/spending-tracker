@@ -302,6 +302,10 @@ class SpendingTracker {
         // Chart year selector
         document.getElementById('chartYear').addEventListener('change', () => this.updateCharts());
         
+        // Category trend chart controls
+        document.getElementById('selectAllCategories').addEventListener('click', () => this.toggleAllCategories(true));
+        document.getElementById('unselectAllCategories').addEventListener('click', () => this.toggleAllCategories(false));
+        
         // Keyboard
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
@@ -2099,6 +2103,17 @@ class SpendingTracker {
         this.transactions = [];
         this.saveToStorage();
         this.render();
+    }
+    
+    toggleAllCategories(show) {
+        if (!this.charts.trend) return;
+        
+        const chart = this.charts.trend;
+        chart.data.datasets.forEach((dataset, index) => {
+            const meta = chart.getDatasetMeta(index);
+            meta.hidden = !show;
+        });
+        chart.update();
     }
 }
 
