@@ -1754,9 +1754,8 @@ class SpendingTracker {
                 return debits - credits; // NET spending
             });
             
-            // Calculate average
-            const average = data.reduce((sum, val) => sum + val, 0) / data.length;
-            const averageData = new Array(12).fill(average);
+            // Calculate EMA (Exponential Moving Average) with 3-month period
+            const emaData = this.calculateEMA(data, 3);
             
             // Actual spending line (solid, filled)
             datasets.push({
@@ -1769,17 +1768,17 @@ class SpendingTracker {
                 borderWidth: 2
             });
             
-            // Average line (dashed, no fill)
+            // EMA trend line (dashed, no fill)
             datasets.push({
-                label: vault.emoji + ' ' + vault.name + ' (avg)',
-                data: averageData,
+                label: vault.emoji + ' ' + vault.name + ' (trend)',
+                data: emaData,
                 borderColor: colors[idx % colors.length],
                 backgroundColor: 'transparent',
                 borderDash: [5, 5],
-                borderWidth: 1.5,
+                borderWidth: 2,
                 pointRadius: 0,
                 fill: false,
-                tension: 0
+                tension: 0.4
             });
         });
         
@@ -2149,13 +2148,33 @@ class SpendingTracker {
         chart.update();
     }
     
+    calculateEMA(data, period) {
+        // EMA (Exponential Moving Average)
+        // Formula: EMA = (Value * multiplier) + (EMA_previous * (1 - multiplier))
+        // multiplier = 2 / (period + 1)
+        
+        const multiplier = 2 / (period + 1);
+        const emaData = [];
+        
+        // First EMA value is just the first data point (or average of first 'period' points)
+        emaData[0] = data[0];
+        
+        // Calculate EMA for remaining points
+        for (let i = 1; i < data.length; i++) {
+            const ema = (data[i] * multiplier) + (emaData[i - 1] * (1 - multiplier));
+            emaData[i] = ema;
+        }
+        
+        return emaData;
+    }
+    
     toggleAverageLines(show) {
         if (!this.charts.trend) return;
         
         const chart = this.charts.trend;
         chart.data.datasets.forEach((dataset, index) => {
-            // Only toggle average lines (those with "(avg)" in label)
-            if (dataset.label.includes('(avg)')) {
+            // Only toggle trend lines (those with "(trend)" in label)
+            if (dataset.label.includes('(trend)')) {
                 const meta = chart.getDatasetMeta(index);
                 meta.hidden = !show;
             }
