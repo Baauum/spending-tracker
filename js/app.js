@@ -16,6 +16,7 @@ class SpendingTracker {
         this.selectedMonth = null; // null = current month, 'all' = all months
         this.auth = null;
         this.saveTimeout = null;
+        this.averageLinesVisible = true; // Default: show average lines
         
         this.initAuth();
     }
@@ -305,6 +306,16 @@ class SpendingTracker {
         // Category trend chart controls
         document.getElementById('selectAllCategories').addEventListener('click', () => this.toggleAllCategories(true));
         document.getElementById('unselectAllCategories').addEventListener('click', () => this.toggleAllCategories(false));
+        document.getElementById('toggleAverageLines').addEventListener('click', () => {
+            // Toggle between showing and hiding average lines
+            if (!this.averageLinesVisible) {
+                this.toggleAverageLines(true);
+                this.averageLinesVisible = true;
+            } else {
+                this.toggleAverageLines(false);
+                this.averageLinesVisible = false;
+            }
+        });
         
         // Keyboard
         document.addEventListener('keydown', (e) => {
@@ -1730,7 +1741,9 @@ class SpendingTracker {
         
         const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899'];
         
-        const datasets = topVaults.map((vault, idx) => {
+        const datasets = [];
+        
+        topVaults.forEach((vault, idx) => {
             const data = last12MonthKeys.map(monthKey => {
                 const debits = this.transactions
                     .filter(t => t.vault === vault.id && t.type === 'debit' && t.date && t.date.startsWith(monthKey))
@@ -1740,14 +1753,34 @@ class SpendingTracker {
                     .reduce((sum, t) => sum + t.amount, 0);
                 return debits - credits; // NET spending
             });
-            return {
+            
+            // Calculate average
+            const average = data.reduce((sum, val) => sum + val, 0) / data.length;
+            const averageData = new Array(12).fill(average);
+            
+            // Actual spending line (solid, filled)
+            datasets.push({
                 label: vault.emoji + ' ' + vault.name,
                 data,
                 borderColor: colors[idx % colors.length],
                 backgroundColor: colors[idx % colors.length] + '20',
                 tension: 0.3,
-                fill: true
-            };
+                fill: true,
+                borderWidth: 2
+            });
+            
+            // Average line (dashed, no fill)
+            datasets.push({
+                label: vault.emoji + ' ' + vault.name + ' (avg)',
+                data: averageData,
+                borderColor: colors[idx % colors.length],
+                backgroundColor: 'transparent',
+                borderDash: [5, 5],
+                borderWidth: 1.5,
+                pointRadius: 0,
+                fill: false,
+                tension: 0
+            });
         });
         
         if (this.charts.trend) this.charts.trend.destroy();
@@ -2112,6 +2145,20 @@ class SpendingTracker {
         chart.data.datasets.forEach((dataset, index) => {
             const meta = chart.getDatasetMeta(index);
             meta.hidden = !show;
+        });
+        chart.update();
+    }
+    
+    toggleAverageLines(show) {
+        if (!this.charts.trend) return;
+        
+        const chart = this.charts.trend;
+        chart.data.datasets.forEach((dataset, index) => {
+            // Only toggle average lines (those with "(avg)" in label)
+            if (dataset.label.includes('(avg)')) {
+                const meta = chart.getDatasetMeta(index);
+                meta.hidden = !show;
+            }
         });
         chart.update();
     }
