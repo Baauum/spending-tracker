@@ -77,21 +77,35 @@ class SpendingTracker {
         if (cleanupBtn) {
             cleanupBtn.addEventListener('click', () => this.cleanupOrphanedTransactions());
         }
+
+        // Show All button
+        const showAllBtn = document.getElementById('showAllBtn');
+        if (showAllBtn) {
+            showAllBtn.addEventListener('click', () => {
+                this.selectedMonth = 'all';
+                this.render();
+            });
+        }
     }
 
     cleanupOrphanedTransactions() {
-        let count = 0;
-        this.transactions.forEach(tx => {
-            if (tx.vault && tx.vault !== 'income' && !this.vaults.some(v => v.id === tx.vault)) {
-                tx.vault = null;
-                count++;
-            }
-        });
+        // Find ALL transactions that are assigned to a vault that doesn't exist
+        const orphaned = this.transactions.filter(tx => 
+            tx.vault && 
+            tx.vault !== 'income' && 
+            !this.vaults.some(v => v.id === tx.vault)
+        );
         
-        if (count > 0) {
-            alert(`Successfully fixed ${count} hidden transactions. They are now in the Uncategorized list.`);
+        if (orphaned.length === 0) {
+            alert("No hidden transactions found!");
+            return;
+        }
+
+        if (confirm(`Found ${orphaned.length} transactions in deleted categories. Move them to Uncategorized?`)) {
+            orphaned.forEach(tx => tx.vault = null);
             this.saveToStorage();
             this.render();
+            alert(`Fixed ${orphaned.length} transactions. Check the 'Uncategorized' section!`);
         }
     }
 
