@@ -2152,9 +2152,11 @@ class SpendingTracker {
     }
 
     updateSummary() {
-        const total = this.transactions.length;
-        const categorized = this.transactions.filter(t => t.vault).length;
-        const totalSpending = this.transactions
+        // FIX: Use filtered transactions to match the selected month
+        const filtered = this.getFilteredTransactions();
+        const total = filtered.length;
+        const categorized = filtered.filter(t => t.vault).length;
+        const totalSpending = filtered
             .filter(t => t.type === 'debit')
             .reduce((sum, t) => sum + t.amount, 0);
         

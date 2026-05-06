@@ -53,7 +53,13 @@ class StatementParser {
             
             const day = dateMatch[1].padStart(2, '0');
             const month = this.monthToNum(dateMatch[2]);
-            const year = dateMatch[3] || '2026';
+            
+            // FIX: Use current year as default, not hardcoded 2026
+            let year = dateMatch[3];
+            if (!year) {
+                const currentYear = new Date().getFullYear();
+                year = String(currentYear);
+            }
             const date = `${year}-${month}-${day}`;
             
             // Get description (text between date and first amount)
@@ -104,8 +110,26 @@ class StatementParser {
             
             const month = this.monthToNum(dateMatch[1]);
             const day = dateMatch[2].padStart(2, '0');
-            // Determine year based on month (Dec = 2025, Jan = 2026)
-            const year = dateMatch[1].toLowerCase() === 'december' ? '2025' : '2026';
+            
+            // FIX: Determine year more intelligently
+            // Use current year as base, but if month is December and we're before December,
+            // it's likely last year's December. If month is January-November and we're after that month,
+            // it could be current or last year depending on context.
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentMonth = now.getMonth() + 1;
+            const txMonth = parseInt(month);
+            
+            let year = currentYear;
+            // If the transaction month is December and we're in Jan-Nov, it's likely last year's December
+            if (txMonth === 12 && currentMonth < 12) {
+                year = currentYear - 1;
+            }
+            // If the transaction month is in the future relative to current month, it's likely last year
+            else if (txMonth > currentMonth) {
+                year = currentYear - 1;
+            }
+            
             const date = `${year}-${month}-${day}`;
             
             // Get description
