@@ -65,6 +65,44 @@ class SpendingTracker {
         document.getElementById('logoutBtn').addEventListener('click', async () => {
             await this.auth.signOut();
         });
+
+        // Bulk delete button
+        const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+        if (bulkDeleteBtn) {
+            bulkDeleteBtn.addEventListener('click', () => this.deleteSelectedTransactions());
+        }
+
+        // Cleanup button
+        const cleanupBtn = document.getElementById('cleanupBtn');
+        if (cleanupBtn) {
+            cleanupBtn.addEventListener('click', () => this.cleanupOrphanedTransactions());
+        }
+    }
+
+    cleanupOrphanedTransactions() {
+        let count = 0;
+        this.transactions.forEach(tx => {
+            if (tx.vault && tx.vault !== 'income' && !this.vaults.some(v => v.id === tx.vault)) {
+                tx.vault = null;
+                count++;
+            }
+        });
+        
+        if (count > 0) {
+            alert(`Successfully fixed ${count} hidden transactions. They are now in the Uncategorized list.`);
+            this.saveToStorage();
+            this.render();
+        }
+    }
+
+    deleteSelectedTransactions() {
+        if (this.selectedTxs.size === 0) return;
+        if (confirm(`Delete ${this.selectedTxs.size} selected transactions?`)) {
+            this.transactions = this.transactions.filter(t => !this.selectedTxs.has(t.id));
+            this.selectedTxs.clear();
+            this.saveToStorage();
+            this.render();
+        }
     }
 
     showLogin() {
@@ -1357,8 +1395,13 @@ class SpendingTracker {
         const container = document.getElementById('uncategorized');
         const filtered = this.getFilteredTransactions();
         
-        // Show all uncategorized items (both debits and credits) for selected month
-        const uncategorized = filtered.filter(t => !t.vault);
+        // FIX: Show items that have NO vault OR a vault ID that no longer exists
+        const uncategorized = filtered.filter(t => {
+            if (!t.vault) return true;
+            if (t.vault === 'income') return false;
+            // Check if the vault ID exists in our current vaults list
+            return !this.vaults.some(v => v.id === t.vault);
+        });
         
         container.innerHTML = uncategorized.map(tx => this.renderBubble(tx)).join('');
         document.getElementById('uncategorizedCount').textContent = uncategorized.length;
@@ -1542,16 +1585,21 @@ class SpendingTracker {
         const txId = e.dataTransfer.getData('text/plain');
         if (!txId) return;
         
-        const tx = this.transactions.find(t => t.id === txId);
-        if (!tx) {
-            console.error('Transaction not found:', txId);
-            return;
-        }
-        
         const vaultId = e.currentTarget.dataset.vault;
-        console.log('Dropping tx', txId, 'into vault', vaultId);
+        const targetVault = vaultId === 'uncategorized' ? null : vaultId;
         
-        tx.vault = vaultId === 'uncategorized' ? null : vaultId;
+        // If the dropped transaction is part of a selection, move all selected
+        if (this.selectedTxs.has(txId)) {
+            this.selectedTxs.forEach(id => {
+                const tx = this.transactions.find(t => t.id === id);
+                if (tx) tx.vault = targetVault;
+            });
+            this.selectedTxs.clear();
+        } else {
+            // Just move the single dropped transaction
+            const tx = this.transactions.find(t => t.id === txId);
+            if (tx) tx.vault = targetVault;
+        }
         
         this.saveToStorage();
         this.render();
@@ -2163,6 +2211,32 @@ class SpendingTracker {
         document.getElementById('totalTx').textContent = total;
         document.getElementById('categorizedTx').textContent = `${categorized}/${total}`;
         document.getElementById('totalSpending').textContent = `$${totalSpending.toFixed(2)}`;
+
+        // Update bulk delete button visibility
+        const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+        if (bulkDeleteBtn) {
+            if (this.selectedTxs.size > 0) {
+                bulkDeleteBtn.style.display = 'block';
+                bulkDeleteBtn.textContent = `🗑️ Delete Selected (${this.selectedTxs.size})`;
+            } else {
+                bulkDeleteBtn.style.display = 'none';
+            }
+        }
+
+        // Update cleanup button visibility
+        const cleanupBtn = document.getElementById('cleanupBtn');
+        if (cleanupBtn) {
+            const orphanedCount = this.transactions.filter(t => 
+                t.vault && t.vault !== 'income' && !this.vaults.some(v => v.id === t.vault)
+            ).length;
+            
+            if (orphanedCount > 0) {
+                cleanupBtn.style.display = 'block';
+                cleanupBtn.textContent = `🧹 Fix ${orphanedCount} Hidden Tx`;
+            } else {
+                cleanupBtn.style.display = 'none';
+            }
+        }
     }
 
     exportCSV() {
