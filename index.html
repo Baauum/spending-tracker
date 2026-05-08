@@ -234,6 +234,7 @@
                 <button class="action-btn" id="exportBtn">📊 Export CSV</button>
                 <button class="action-btn secondary" id="clearBtn">🗑️ Clear All</button>
                 <button class="action-btn" id="resetBtn" style="background: var(--bg-tertiary);">🔄 Reset Categories</button>
+                <button class="action-btn" id="logoutBtnBottom" style="background: var(--danger);">🚪 Sign Out</button>
             </div>
         </div>
     </div>
@@ -303,6 +304,20 @@
             <div class="modal-actions">
                 <button class="btn-secondary" id="cancelAddTx">Cancel</button>
                 <button class="btn-primary" id="saveAddTx">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Smart Categorize Modal -->
+    <div class="modal" id="smartCatModal">
+        <div class="modal-content">
+            <h3>🪄 Smart Categorize</h3>
+            <p id="smartCatPrompt">Categorize all transactions from "Merchant Name" to:</p>
+            <div class="smart-modal-grid" id="smartVaultGrid">
+                <!-- Vaults populated by JS -->
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" id="cancelSmartCat">Cancel</button>
             </div>
         </div>
     </div>
