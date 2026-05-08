@@ -1467,6 +1467,20 @@ class SpendingTracker {
     }
 
     renderUncategorized() {
+    const container = document.getElementById('uncategorized');
+    const filtered = this.getFilteredTransactions();
+    
+    // FIX: Show items that have NO vault OR a vault ID that no longer exists
+    const uncategorized = filtered.filter(t => {
+        if (!t.vault) return true;
+        if (t.vault === 'income') return false;
+        return !this.vaults.some(v => v.id === t.vault);
+    }).sort((a, b) => b.amount - a.amount);
+    
+    container.innerHTML = uncategorized.map(tx => this.renderBubble(tx)).join('');
+    document.getElementById('uncategorizedCount').textContent = uncategorized.length;
+}
+        
         const container = document.getElementById('uncategorized');
         const filtered = this.getFilteredTransactions();
         
