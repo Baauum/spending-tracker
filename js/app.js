@@ -223,7 +223,9 @@ class SpendingTracker {
     applySmartCategorization() {
         let count = 0;
         this.transactions.forEach(tx => {
-            if (!tx.vault) {
+            // FIX: Only auto-categorize DEBITS (expenses). 
+            // Credits (income) should always go to the Income vault or stay uncategorized.
+            if (!tx.vault && tx.type === 'debit') {
                 const desc = tx.description.toLowerCase();
                 const rule = this.rules.find(r => desc.includes(r.keyword.toLowerCase()));
                 if (rule) {
@@ -1617,6 +1619,16 @@ class SpendingTracker {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         e.currentTarget.classList.add('drag-over');
+        
+        // AUTO-SCROLL LOGIC
+        const scrollThreshold = 100; // Pixels from top/bottom to start scrolling
+        const scrollSpeed = 15;
+        
+        if (e.clientY < scrollThreshold) {
+            window.scrollBy(0, -scrollSpeed);
+        } else if (window.innerHeight - e.clientY < scrollThreshold) {
+            window.scrollBy(0, scrollSpeed);
+        }
     }
 
     handleDragLeave(e) {
@@ -1635,7 +1647,9 @@ class SpendingTracker {
         if (!txId) return;
         
         const vaultId = e.currentTarget.dataset.vault;
-        const targetVault = vaultId === 'uncategorized' ? null : vaultId;
+        
+        // FIX: If it's an income container, the ID is 'income'
+        const targetVault = (vaultId === 'uncategorized') ? null : vaultId;
         
         // If the dropped transaction is part of a selection, move all selected
         if (this.selectedTxs.has(txId)) {
