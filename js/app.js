@@ -18,6 +18,7 @@ class SpendingTracker {
         this.saveTimeout = null;
         this.trendLinesVisible = true; // Default: show trend lines
         this.trendDateRange = null; // { start: 'YYYY-MM', end: 'YYYY-MM' } or null for all
+        this.selectedTxs = new Set();
         
         this.initAuth();
     }
