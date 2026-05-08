@@ -315,7 +315,11 @@ class SpendingTracker {
         localStorage.setItem(`${prefix}spending_transactions`, JSON.stringify(this.transactions));
         localStorage.setItem(`${prefix}spending_rules`, JSON.stringify(this.rules));
         console.log('Saved to local storage');
-    }Tab navigation
+    }
+
+    initEventListeners() {
+        // Tab navigation
+
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
         });
