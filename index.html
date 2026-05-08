@@ -211,7 +211,10 @@
             </div>
         </div>
 
-        <div class="summary-bar" id="summaryBar">
+        <div class="summary-bar">
+            <div class="summary-item search-container" style="flex: 2; min-width: 200px;">
+                <input type="text" id="txSearch" placeholder="🔍 Search transactions (e.g. 'Rent')..." style="width: 100%; padding: 8px 12px; border-radius: 20px; border: 1px solid var(--glass-border); background: var(--bg-tertiary); color: white;">
+            </div>
             <div class="summary-item">
                 <span class="summary-label">Total Transactions</span>
                 <span class="summary-value" id="totalTx">0</span>
@@ -230,6 +233,7 @@
                 <button class="action-btn" id="showAllBtn" style="background: var(--bg-tertiary);">👁️ Show All Months</button>
                 <button class="action-btn" id="exportBtn">📊 Export CSV</button>
                 <button class="action-btn secondary" id="clearBtn">🗑️ Clear All</button>
+                <button class="action-btn" id="resetBtn" style="background: var(--bg-tertiary);">🔄 Reset Categories</button>
             </div>
         </div>
     </div>
