@@ -319,7 +319,6 @@ class SpendingTracker {
 
     initEventListeners() {
         // Tab navigation
-
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
         });
