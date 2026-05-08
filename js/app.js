@@ -63,7 +63,16 @@ class SpendingTracker {
 
         // Logout button
         document.getElementById('logoutBtn').addEventListener('click', async () => {
+            // Clear current session data before signing out
+            this.transactions = [];
+            this.vaults = this.getDefaultVaults();
+            this.rules = this.getDefaultRules();
+            this.selectedTxs.clear();
+            
             await this.auth.signOut();
+            
+            // Force a clean state for the next user
+            window.location.reload();
         });
 
         // Bulk delete button
@@ -229,9 +238,12 @@ class SpendingTracker {
     }
 
     loadFromLocalStorage() {
-        const savedVaults = localStorage.getItem('spending_vaults');
-        const savedTx = localStorage.getItem('spending_transactions');
-        const savedRules = localStorage.getItem('spending_rules');
+        // Use user-specific keys if logged in, otherwise use generic keys
+        const prefix = (this.auth && this.auth.getUserId()) ? `${this.auth.getUserId()}_` : '';
+        
+        const savedVaults = localStorage.getItem(`${prefix}spending_vaults`);
+        const savedTx = localStorage.getItem(`${prefix}spending_transactions`);
+        const savedRules = localStorage.getItem(`${prefix}spending_rules`);
         
         this.vaults = savedVaults ? JSON.parse(savedVaults) : this.getDefaultVaults();
         this.transactions = savedTx ? JSON.parse(savedTx) : [];
@@ -295,13 +307,13 @@ class SpendingTracker {
     }
 
     saveToLocalStorage() {
-        localStorage.setItem('spending_vaults', JSON.stringify(this.vaults));
-        localStorage.setItem('spending_transactions', JSON.stringify(this.transactions));
-        localStorage.setItem('spending_rules', JSON.stringify(this.rules));
-    }
-
-    initEventListeners() {
-        // Tab navigation
+        const prefix = (this.auth && this.auth.getUserId()) ? `${this.auth.getUserId()}_` : '';
+        
+        localStorage.setItem(`${prefix}spending_vaults`, JSON.stringify(this.vaults));
+        localStorage.setItem(`${prefix}spending_transactions`, JSON.stringify(this.transactions));
+        localStorage.setItem(`${prefix}spending_rules`, JSON.stringify(this.rules));
+        console.log('Saved to local storage');
+    }Tab navigation
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
         });
