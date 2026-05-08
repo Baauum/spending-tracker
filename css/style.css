@@ -1503,3 +1503,66 @@ header h1 {
     outline: none;
     border-color: var(--accent);
 }
+
+/* SMART CATEGORIZE UI FIX */
+.smart-cat-btn {
+    background: rgba(56, 189, 248, 0.1) !important;
+    border: 1px solid rgba(56, 189, 248, 0.3) !important;
+    cursor: pointer !important;
+    font-size: 14px !important;
+    padding: 2px 6px !important;
+    border-radius: 6px !important;
+    transition: all 0.2s !important;
+    margin-left: 8px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: var(--accent) !important;
+}
+
+.smart-cat-btn:hover {
+    background: var(--accent) !important;
+    color: var(--bg-primary) !important;
+    transform: scale(1.1);
+}
+
+.smart-modal-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 12px;
+    margin-top: 20px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+.smart-vault-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 15px 10px;
+    background: var(--bg-tertiary);
+    border: 2px solid transparent;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.smart-vault-option:hover {
+    background: var(--bg-secondary);
+    border-color: var(--accent);
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.smart-vault-option .emoji {
+    font-size: 28px;
+    margin-bottom: 8px;
+}
+
+.smart-vault-option .name {
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    color: var(--text-primary);
+}
