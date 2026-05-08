@@ -19,6 +19,7 @@ class SpendingTracker {
         this.trendLinesVisible = true; // Default: show trend lines
         this.trendDateRange = null; // { start: 'YYYY-MM', end: 'YYYY-MM' } or null for all
         this.selectedTxs = new Set();
+        this.smartCatTx = null;
         
         this.initAuth();
     }
@@ -62,19 +63,33 @@ class SpendingTracker {
             }
         });
 
-        // Logout button
-        document.getElementById('logoutBtn').addEventListener('click', async () => {
-            // Clear current session data before signing out
-            this.transactions = [];
-            this.vaults = this.getDefaultVaults();
-            this.rules = this.getDefaultRules();
-            this.selectedTxs.clear();
-            
-            await this.auth.signOut();
-            
-            // Force a clean state for the next user
-            window.location.reload();
-        });
+        // Logout buttons (Top and Bottom)
+        const logoutHandler = async () => {
+            if (confirm('Are you sure you want to sign out?')) {
+                // Clear current session data before signing out
+                this.transactions = [];
+                this.vaults = this.getDefaultVaults();
+                this.rules = this.getDefaultRules();
+                this.selectedTxs.clear();
+                
+                try {
+                    await this.auth.signOut();
+                    // Clear local storage completely to prevent data overlap
+                    localStorage.clear(); 
+                    // Force a clean state for the next user
+                    window.location.replace(window.location.origin + window.location.pathname);
+                } catch (error) {
+                    console.error('Logout error:', error);
+                    window.location.reload();
+                }
+            }
+        };
+
+        document.getElementById('logoutBtn').addEventListener('click', logoutHandler);
+        const bottomLogout = document.getElementById('logoutBtnBottom');
+        if (bottomLogout) {
+            bottomLogout.addEventListener('click', logoutHandler);
+        }
 
         // Bulk delete button
         const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
@@ -319,6 +334,11 @@ class SpendingTracker {
     }
 
     initEventListeners() {
+        // Smart Categorize Modal
+        document.getElementById('cancelSmartCat').addEventListener('click', () => {
+            document.getElementById('smartCatModal').classList.remove('active');
+        });
+
         // Tab navigation
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
@@ -1464,13 +1484,73 @@ class SpendingTracker {
 
     renderBubble(tx) {
         const isCredit = tx.type === 'credit';
+        const merchant = this.cleanMerchantName(tx.description);
         return `
             <div class="bubble" draggable="true" data-tx-id="${tx.id}">
                 <span class="source-badge ${tx.source}">${tx.source === 'bank' ? 'Bank' : tx.source === 'amex' ? 'Amex' : '?'}</span>
                 <span class="desc" title="${tx.description}">${tx.description}</span>
                 <span class="amount ${isCredit ? 'credit' : ''}">${isCredit ? '+' : '-'}$${tx.amount.toFixed(2)}</span>
+                <button class="smart-cat-btn" onclick="event.stopPropagation(); app.showSmartCat('${tx.id}')" title="Smart Categorize All from ${merchant}">🪄</button>
             </div>
         `;
+    }
+
+    showSmartCat(txId) {
+        const tx = this.transactions.find(t => t.id === txId);
+        if (!tx) return;
+
+        this.smartCatTx = tx;
+        const merchant = this.cleanMerchantName(tx.description);
+        document.getElementById('smartCatPrompt').textContent = `Categorize all transactions from "${merchant}" to:`;
+
+        const grid = document.getElementById('smartVaultGrid');
+        grid.innerHTML = this.vaults.map(v => `
+            <div class="smart-vault-option" onclick="app.applySmartCat('${v.id}')">
+                <span class="emoji">${v.emoji}</span>
+                <span class="name">${v.name}</span>
+            </div>
+        `).join('') + `
+            <div class="smart-vault-option" onclick="app.applySmartCat('income')">
+                <span class="emoji">💰</span>
+                <span class="name">Income</span>
+            </div>
+        `;
+
+        document.getElementById('smartCatModal').classList.add('active');
+    }
+
+    applySmartCat(vaultId) {
+        if (!this.smartCatTx) return;
+
+        const merchant = this.cleanMerchantName(this.smartCatTx.description);
+        const keyword = merchant.toLowerCase();
+        let count = 0;
+
+        // 1. Update all existing transactions from this merchant
+        this.transactions.forEach(tx => {
+            if (this.cleanMerchantName(tx.description).toLowerCase() === keyword) {
+                tx.vault = vaultId === 'income' ? 'income' : vaultId;
+                count++;
+            }
+        });
+
+        // 2. Create a permanent rule for future transactions
+        const ruleExists = this.rules.find(r => r.keyword.toLowerCase() === keyword);
+        if (!ruleExists) {
+            this.rules.push({
+                keyword: merchant,
+                vaultId: vaultId,
+                caseSensitive: false,
+                smart: true
+            });
+        }
+
+        this.saveToStorage();
+        this.render();
+        document.getElementById('smartCatModal').classList.remove('active');
+        
+        // Show success feedback
+        alert(`🪄 Done! Categorized ${count} transactions from "${merchant}" and created an auto-rule.`);
     }
 
     attachDragListeners() {
